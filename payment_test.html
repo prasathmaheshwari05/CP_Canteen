@@ -1,0 +1,48 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <script src="https://checkout.razorpay.com/v1/checkout.js"></script>
+  </head>
+  <body>
+    <button onclick="payNow()">Pay Now</button>
+
+    <script>
+      function payNow() {
+        var options = {
+          key: "rzp_test_SaVtEGdcYQ0Ssv",
+          amount: 7000,
+          currency: "INR",
+          order_id: "order_SaWMJh5vAZa6RY", // from your API
+          // 🔥 FORCE UPI
+          method: {
+            upi: true,
+            card: false,
+            netbanking: false,
+            wallet: false,
+          },
+          handler: function (response) {
+            console.log("FULL RESPONSE:", response);
+
+            alert("Payment ID: " + response.razorpay_payment_id);
+            alert("Signature: " + response.razorpay_signature);
+
+            // 👉 Send this to backend
+            fetch("http://127.0.0.1:8000/payment/verify-payment", {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({
+                razorpay_order_id: response.razorpay_order_id,
+                razorpay_payment_id: response.razorpay_payment_id,
+                razorpay_signature: response.razorpay_signature,
+                order_id: 3,
+              }),
+            });
+          },
+        };
+
+        var rzp = new Razorpay(options);
+        rzp.open();
+      }
+    </script>
+  </body>
+</html>
