@@ -16,7 +16,7 @@ export default function AdminDashboard() {
     Promise.all([
       ApiService.get('/api/menu'),
       ApiService.get('/api/today-menu'),
-      ApiService.get('/api/orders'),
+      ApiService.get('/api/admin/orders'),
     ]).then(([pRes, mRes, oRes]) => {
       setProducts(pRes.data ?? []);
       setTodayMenu(mRes.data ?? []);
@@ -70,7 +70,7 @@ export default function AdminDashboard() {
     <div className="space-y-6">
 
       {/* 4 Stat Cards */}
-      <div className="grid grid-cols-2 gap-4">
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
         {cards.map((card, i) => (
           <motion.div key={card.label}
             initial={{ opacity: 0, y: 14 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: i * 0.07 }}
@@ -93,7 +93,7 @@ export default function AdminDashboard() {
       </div>
 
       {/* Bottom Row */}
-      <div className="grid grid-cols-2 gap-4">
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
 
         {/* Today's Menu Items */}
         <motion.div initial={{ opacity: 0, y: 14 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.32 }}

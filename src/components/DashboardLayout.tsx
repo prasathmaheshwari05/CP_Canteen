@@ -7,15 +7,38 @@ export const useScrollContainer = () => useContext(ScrollContainerContext);
 
 export function DashboardLayout({ children }: { children: ReactNode }) {
   const [collapsed, setCollapsed] = useState(false);
+  const [mobileOpen, setMobileOpen] = useState(false);
   const scrollRef = useRef<HTMLElement>(null);
 
   return (
     <div className="flex min-h-screen w-full bg-background">
-      <AppSidebar collapsed={collapsed} onToggleCollapse={() => setCollapsed(!collapsed)} />
+      {/* Mobile overlay */}
+      {mobileOpen && (
+        <div
+          className="fixed inset-0 z-30 bg-black/50 backdrop-blur-sm lg:hidden"
+          onClick={() => setMobileOpen(false)}
+        />
+      )}
+
+      {/* Sidebar — hidden on mobile unless open */}
+      <div className={`fixed lg:static inset-y-0 left-0 z-40 transition-transform duration-300 lg:translate-x-0 ${
+        mobileOpen ? 'translate-x-0' : '-translate-x-full'
+      }`}>
+        <AppSidebar
+          collapsed={collapsed}
+          onToggleCollapse={() => setCollapsed(!collapsed)}
+          onMobileClose={() => setMobileOpen(false)}
+        />
+      </div>
+
       <div className="flex-1 flex flex-col min-w-0">
-        <TopHeader collapsed={collapsed} onToggleCollapse={() => setCollapsed(!collapsed)} />
+        <TopHeader
+          collapsed={collapsed}
+          onToggleCollapse={() => setCollapsed(!collapsed)}
+          onMobileMenuOpen={() => setMobileOpen(true)}
+        />
         <ScrollContainerContext.Provider value={scrollRef}>
-          <main ref={scrollRef} className="flex-1 p-6 overflow-auto scrollbar-thin">
+          <main ref={scrollRef} className="flex-1 p-3 sm:p-4 md:p-6 overflow-auto scrollbar-thin">
             {children}
           </main>
         </ScrollContainerContext.Provider>

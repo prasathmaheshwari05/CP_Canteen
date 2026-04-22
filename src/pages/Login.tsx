@@ -95,9 +95,8 @@ export default function Login() {
     e.stopPropagation();
 
     const errs: Record<string, string> = {};
-    if (!identifier.trim()) errs.identifier = "Employee ID is required";
-    else if (isNaN(Number(identifier.trim())))
-      errs.identifier = "Employee ID must be a number";
+    if (!identifier.trim())
+      errs.identifier = "Employee ID or Email is required";
     if (!password.trim()) errs.password = "Password is required";
 
     if (Object.keys(errs).length > 0) {
@@ -107,21 +106,38 @@ export default function Login() {
 
     setErrors({});
     setIsLoading(true);
+
+    const isEmail = identifier.trim().includes("@");
+
     try {
+      let empId: number;
+
+      if (isEmail) {
+        // Fetch users to find emp_id by email
+        const usersRes = await ApiService.get("/auth/users");
+        const users: any[] = usersRes.data ?? [];
+        const matched = users.find(
+          (u: any) =>
+            u.emp_mail?.toLowerCase() === identifier.trim().toLowerCase()
+        );
+        if (!matched) {
+          setErrors({ password: "No account found with this email" });
+          setIsLoading(false);
+          return;
+        }
+        empId = matched.emp_id;
+      } else {
+        empId = Number(identifier.trim());
+      }
+
       const res = await ApiService.post("/auth/login", {
-        emp_id: Number(identifier.trim()),
+        emp_id: empId,
         password,
       });
-      const { access_token, role } = res.data;
+      const { access_token, role, emp_name, emp_mail, emp_id: loginEmpId, id: userId } = res.data;
       sessionStorage.setItem("access_token", access_token);
       setRole(role);
-      // fetch logged-in user profile
-      try {
-        const meRes = await ApiService.get("/auth/me");
-        setCurrentUser(meRes.data);
-      } catch {
-        // profile fetch failed, continue anyway
-      }
+      setCurrentUser({ emp_name, emp_mail, emp_id: loginEmpId, id: userId } as any);
       navigate("/");
     } catch {
       setErrors({ password: "Invalid credentials" });
@@ -169,7 +185,7 @@ export default function Login() {
                 <img
                   src="/CP_Logo.png"
                   alt="CP Dining"
-                  style={{ maxWidth: '60%', height: 'auto' }}
+                  style={{ maxWidth: "60%", height: "auto" }}
                   className="object-contain drop-shadow-lg"
                 />
               </div>
@@ -182,9 +198,9 @@ export default function Login() {
 
             <form onSubmit={handleLogin} className="space-y-4" noValidate>
               <Field
-                label="Employee ID"
+                label="Employee ID or Email"
                 type="text"
-                placeholder="Enter your Employee ID"
+                placeholder="Enter Employee ID or Email"
                 value={identifier}
                 onChange={(v) => {
                   setIdentifier(v);

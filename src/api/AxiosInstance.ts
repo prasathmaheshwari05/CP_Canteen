@@ -1,23 +1,26 @@
-import axios from 'axios';
+import axios from "axios";
 
 const api = axios.create({
-  baseURL: import.meta.env.VITE_API_BASE_URL || 'http://localhost:3000',
+  baseURL: import.meta.env.VITE_API_BASE_URL || "http://localhost:3000",
   maxRedirects: 0,
+  headers: {
+    "ngrok-skip-browser-warning": "true",
+  },
 });
 
 const logout = () => {
-  sessionStorage.removeItem('access_token');
+  sessionStorage.removeItem("access_token");
 };
 
 const setupInterceptors = (instance) => {
   instance.interceptors.request.use(
     (config) => {
-      const token = sessionStorage.getItem('access_token');
+      const token = sessionStorage.getItem("access_token");
       if (token) {
-        config.headers['Authorization'] = `Bearer ${token}`;
+        config.headers["Authorization"] = `Bearer ${token}`;
       }
       // Remove trailing slash to avoid FastAPI 404 redirect
-      if (config.url && config.url.endsWith('/')) {
+      if (config.url && config.url.endsWith("/")) {
         config.url = config.url.slice(0, -1);
       }
       return config;
@@ -28,15 +31,15 @@ const setupInterceptors = (instance) => {
   instance.interceptors.response.use(
     (response) => response,
     (error) => {
-      const isLoginRoute = window.location.pathname === '/login';
+      const isLoginRoute = window.location.pathname === "/login";
 
       if (!isLoginRoute && error.response?.status === 401) {
         logout();
-        window.location.href = '/login';
+        window.location.href = "/login";
       }
 
       if (!isLoginRoute && error.response?.status === 403) {
-        window.location.href = '/login';
+        window.location.href = "/login";
       }
 
       return Promise.reject(error);

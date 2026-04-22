@@ -73,6 +73,10 @@ interface AppState {
   orders: Order[];
   addOrder: (order: Order) => void;
   updateOrderStatus: (id: string, status: Order['status']) => void;
+
+  myOrders: any[];
+  addMyOrder: (order: any) => void;
+  clearMyOrders: () => void;
 }
 
 const sampleProducts: Product[] = [];
@@ -121,4 +125,8 @@ export const useAppStore = create<AppState>()(persist((set) => ({
   orders: [],
   addOrder: (order) => set((s) => ({ orders: [order, ...s.orders] })),
   updateOrderStatus: (id, status) => set((s) => ({ orders: s.orders.map((o) => (o.id === id ? { ...o, status } : o)) })),
-}), { name: 'cafeai-store', partialize: (s) => ({ currentRole: s.currentRole }) }));
+
+  myOrders: [],
+  addMyOrder: (order) => set((s) => ({ myOrders: [order, ...s.myOrders] })),
+  clearMyOrders: () => set({ myOrders: [] }),
+}), { name: 'cafeai-store', partialize: (s) => ({ currentRole: s.currentRole, currentUser: s.currentUser, myOrders: s.myOrders }) }));

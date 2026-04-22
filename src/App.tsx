@@ -14,9 +14,11 @@ import AdminMenuManagement from "@/pages/AdminMenuManagement";
 import AdminOrders from "@/pages/AdminOrders";
 import UserDashboard from "@/pages/UserDashboard";
 import UserCart from "@/pages/UserCart";
+import MyBooking from "@/pages/MyBooking";
 import Login from "@/pages/Login";
 import Signup from "@/pages/Signup";
 import NotFound from "./pages/NotFound.tsx";
+import Acknowledged from "@/pages/Acknowledged";
 
 const queryClient = new QueryClient();
 
@@ -29,6 +31,7 @@ function AppRoutes() {
     <Routes>
       <Route path="/login" element={<Login />} />
       <Route path="/signup" element={<Signup />} />
+      <Route path="/acknowledged" element={<Acknowledged />} />
       <Route path="/*" element={
         !isAuth ? <Navigate to="/login" replace /> : (
           <DashboardLayout>
@@ -56,6 +59,7 @@ function AppRoutes() {
                   <Route path="/" element={<UserDashboard />} />
                   <Route path="/order" element={<UserDashboard />} />
                   <Route path="/cart" element={<UserCart />} />
+                  <Route path="/my-booking" element={<MyBooking />} />
                   <Route path="*" element={<Navigate to="/" replace />} />
                 </>
               )}

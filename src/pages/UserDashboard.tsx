@@ -56,8 +56,8 @@ function CarouselRow({
         {slides.map((slide, i) => (
           <div
             key={i}
-            className="relative shrink-0 h-36 rounded-xl overflow-hidden border border-border/40"
-            style={{ width: "calc(20% - 10px)" }}
+            className="relative shrink-0 h-28 sm:h-36 rounded-xl overflow-hidden border border-border/40"
+            style={{ width: "calc(33.33% - 10px)", minWidth: '120px' }}
           >
             <img
               src={slide.src}
@@ -84,7 +84,7 @@ function AnimatedPrice({ value }: { value: number }) {
 }
 
 export default function UserDashboard() {
-  const { addToCart, updateCartQty, cart } = useAppStore();
+  const { addToCart, updateCartQty, cart, addMyOrder } = useAppStore();
   const [menuProducts, setMenuProducts] = useState<any[]>([]);
   const [menuLoading, setMenuLoading] = useState(true);
   const [showBill, setShowBill] = useState(false);
@@ -138,6 +138,13 @@ export default function UserDashboard() {
       }));
       const res = await ApiService.post("/api/order", { items });
       setOrderData({ id: res.data.id, total_amount: res.data.total_amount });
+      // Save to local store for MyBooking
+      addMyOrder({
+        id: res.data.id,
+        total_amount: res.data.total_amount,
+        created_at: new Date().toISOString(),
+        items: cart.map(c => ({ menu_id: Number(c.product.id), quantity: c.quantity, name: c.product.name })),
+      });
       setConfirmed(true);
     } catch (err: any) {
       const msg = ApiService.handleAxiosError(err, "Order failed");
@@ -156,7 +163,7 @@ export default function UserDashboard() {
   return (
     <div className="flex flex-col gap-4 p-2 pb-8">
       {/* Page Title */}
-      <div className="flex justify-center pt-2">
+      <div className="flex justify-center pt-1 px-2">
         <motion.h1
           animate={{
             textShadow: [
@@ -166,7 +173,7 @@ export default function UserDashboard() {
             ],
           }}
           transition={{ duration: 2.8, repeat: Infinity, ease: "easeInOut" }}
-          className="text-xl font-bold tracking-widest uppercase text-orange-400"
+          className="text-sm sm:text-xl font-bold tracking-widest uppercase text-orange-400 text-center"
         >
           Reserve Your Meal, Skip The Wait
         </motion.h1>
@@ -238,7 +245,7 @@ export default function UserDashboard() {
         <div>
         
           {/* Menu Grid */}
-          <div className="grid grid-cols-3 sm:grid-cols-4 md:grid-cols-6 gap-x-3 gap-y-14 pt-12">
+          <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-x-3 gap-y-14 pt-12">
             {menuProducts.map((p) => {
               const pid = String(p.menu_id ?? p.id);
               const inCart = cart.find((c) => c.product.id === pid);

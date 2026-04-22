@@ -1,13 +1,12 @@
-import {
-  Search,
-  LogOut,
-  User,
-  Settings,
-} from "lucide-react";
+import { useRef, useState } from "react";
+import { LogOut, User, Settings, Menu, ScanLine, X, CheckCircle, AlertCircle, Camera } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 import { useAppStore, Role } from "@/store/appStore";
 import { Badge } from "@/components/ui/badge";
 import { ThemeToggle } from "@/components/ThemeToggle";
+import { motion, AnimatePresence } from "framer-motion";
+import jsQR from "jsqr";
+import ApiService from "@/api/apiServices";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -28,81 +27,316 @@ const roleBadgeStyle: Record<Role, string> = {
   user: "bg-emerald-500/15 text-emerald-400 border-emerald-500/25",
 };
 
+interface ScanResult {
+  orderId: string;
+  items: { name: string; quantity: number }[];
+  total: number;
+}
+
 interface TopHeaderProps {
   collapsed: boolean;
   onToggleCollapse: () => void;
+  onMobileMenuOpen: () => void;
 }
 
-export function TopHeader({ collapsed, onToggleCollapse }: TopHeaderProps) {
+export function TopHeader({ collapsed, onToggleCollapse, onMobileMenuOpen }: TopHeaderProps) {
   const { currentRole, currentUser } = useAppStore();
   const navigate = useNavigate();
 
+  const [showScanner, setShowScanner] = useState(false);
+  const [scanResult, setScanResult] = useState<ScanResult | null>(null);
+  const [scanError, setScanError] = useState("");
+  const [scanning, setScanning] = useState(false);
+  const fileInputRef = useRef<HTMLInputElement>(null);
+
   const empName = (currentUser as any)?.emp_name ?? roleLabels[currentRole] ?? "User";
   const displayEmail = (currentUser as any)?.emp_mail ?? "";
-
-  // Build initials: first letter of first word + first letter of last word
   const nameParts = empName.trim().split(/\s+/);
-  const initials = nameParts.length >= 2
-    ? (nameParts[0][0] + nameParts[nameParts.length - 1][0]).toUpperCase()
-    : nameParts[0][0].toUpperCase();
+  const initials =
+    nameParts.length >= 2
+      ? (nameParts[0][0] + nameParts[nameParts.length - 1][0]).toUpperCase()
+      : nameParts[0][0].toUpperCase();
+
+  const openScanner = () => {
+    setScanResult(null);
+    setScanError("");
+    setShowScanner(true);
+  };
+
+  const closeScanner = () => {
+    setShowScanner(false);
+    setScanResult(null);
+    setScanError("");
+    setScanning(false);
+  };
+
+  const handleDone = async () => {
+    if (scanResult?.orderId) {
+      window.dispatchEvent(new CustomEvent('qr-order-received', { detail: { orderId: scanResult.orderId } }));
+      ApiService.post(`/api/admin/scan/${scanResult.orderId}`, {}).catch(() => {});
+    }
+    closeScanner();
+  };
+
+  const handleCapture = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    setScanning(true);
+    setScanError("");
+
+    const reader = new FileReader();
+    reader.onload = (ev) => {
+      const img = new Image();
+      img.onload = () => {
+        const canvas = document.createElement("canvas");
+        canvas.width = img.width;
+        canvas.height = img.height;
+        const ctx = canvas.getContext("2d");
+        if (!ctx) { setScanError("Failed to process image."); setScanning(false); return; }
+        ctx.drawImage(img, 0, 0);
+        const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
+        const code = jsQR(imageData.data, imageData.width, imageData.height);
+        setScanning(false);
+        if (!code) { setScanError("No QR code found. Try again."); return; }
+        try {
+          const url = new URL(code.data);
+          const orderId = url.searchParams.get("order_id") ?? "";
+          const itemsRaw = url.searchParams.get("items") ?? "[]";
+          const total = parseFloat(url.searchParams.get("total") ?? "0");
+          const items = JSON.parse(decodeURIComponent(itemsRaw));
+          setScanResult({ orderId, items, total });
+        } catch {
+          setScanError("Invalid QR code.");
+        }
+      };
+      img.src = ev.target?.result as string;
+    };
+    reader.readAsDataURL(file);
+    // reset input so same file can be re-selected
+    e.target.value = "";
+  };
 
   return (
-    <header className="h-16 border-b border-border bg-card/50 backdrop-blur-xl flex items-center justify-between px-5 sticky top-0 z-30">
-      <div className="flex items-center gap-3">
-        <div className="flex items-center gap-2 bg-muted/40 border border-border/50 rounded-xl px-3 py-2 w-72">
-          <Search className="w-4 h-4 text-muted-foreground shrink-0" />
-          <input
-            placeholder="Search anything..."
-            className="bg-transparent text-sm text-foreground placeholder:text-muted-foreground outline-none w-full"
-          />
+    <>
+      <header className="h-14 sm:h-16 border-b border-border bg-card/50 backdrop-blur-xl flex items-center justify-between px-3 sm:px-5 sticky top-0 z-30 gap-2">
+        <div className="flex items-center gap-2 sm:gap-3">
+          {/* Mobile hamburger */}
+          <button
+            onClick={onMobileMenuOpen}
+            className="lg:hidden p-2 rounded-lg hover:bg-muted/50 text-muted-foreground hover:text-foreground transition-colors"
+          >
+            <Menu className="w-5 h-5" />
+          </button>
+
+          {/* Scan QR button — admin only */}
+          {currentRole === "admin" && (
+            <motion.button
+              whileHover={{ scale: 1.04 }}
+              whileTap={{ scale: 0.96 }}
+              onClick={openScanner}
+              className="flex items-center gap-2 px-3 sm:px-4 py-2 rounded-xl border border-orange-500/40 bg-orange-500/10 text-orange-400 hover:bg-orange-500/20 transition-colors font-semibold text-sm"
+            >
+              <ScanLine className="w-4 h-4 shrink-0" />
+              <span className="hidden sm:inline">Scan QR</span>
+            </motion.button>
+          )}
         </div>
-      </div>
 
-      <div className="flex items-center gap-3">
-        <ThemeToggle />
+        <div className="flex items-center gap-2 sm:gap-3">
+          <ThemeToggle />
 
-        <Badge
-          variant="outline"
-          className={`text-[10px] font-semibold ${roleBadgeStyle[currentRole]}`}
-        >
-          {roleLabels[currentRole]}
-        </Badge>
+          <Badge
+            variant="outline"
+            className={`text-[10px] font-semibold hidden sm:inline-flex ${roleBadgeStyle[currentRole]}`}
+          >
+            {roleLabels[currentRole]}
+          </Badge>
 
-        {/* Profile Dropdown */}
-        <DropdownMenu>
-          <DropdownMenuTrigger asChild>
-            <button
-              className="w-9 h-9 rounded-xl flex items-center justify-center text-sm font-bold text-white hover:opacity-90 hover:ring-2 hover:ring-orange-500/40 transition-all cursor-pointer"
-              style={{
-                background:
-                  "linear-gradient(135deg, hsl(24 95% 53%), hsl(43 96% 52%))",
-              }}
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <button
+                className="w-9 h-9 rounded-xl flex items-center justify-center text-sm font-bold text-white hover:opacity-90 hover:ring-2 hover:ring-orange-500/40 transition-all cursor-pointer"
+                style={{ background: "linear-gradient(135deg, hsl(24 95% 53%), hsl(43 96% 52%))" }}
+              >
+                {initials}
+              </button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end" className="w-48">
+              <div className="px-2 py-1.5">
+                <p className="text-sm font-semibold">{empName}</p>
+                <p className="text-xs text-muted-foreground">{displayEmail}</p>
+              </div>
+              <DropdownMenuSeparator />
+              <DropdownMenuItem className="cursor-pointer">
+                <User className="w-4 h-4 mr-2" /> Profile
+              </DropdownMenuItem>
+              <DropdownMenuItem className="cursor-pointer">
+                <Settings className="w-4 h-4 mr-2" /> Settings
+              </DropdownMenuItem>
+              <DropdownMenuSeparator />
+              <DropdownMenuItem
+                onClick={() => navigate("/login")}
+                className="cursor-pointer text-destructive hover:!text-white focus:text-white"
+              >
+                <LogOut className="w-4 h-4 mr-2" /> Logout
+              </DropdownMenuItem>
+            </DropdownMenuContent>
+          </DropdownMenu>
+        </div>
+      </header>
+
+      {/* Hidden file input — opens native camera */}
+      <input
+        ref={fileInputRef}
+        type="file"
+        accept="image/*"
+        capture="environment"
+        className="hidden"
+        onChange={handleCapture}
+      />
+
+      {/* QR Scanner Modal */}
+      <AnimatePresence>
+        {showScanner && (
+          <motion.div
+            initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
+            className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 backdrop-blur-sm p-4"
+            onClick={closeScanner}
+          >
+            <motion.div
+              initial={{ scale: 0.9, opacity: 0 }} animate={{ scale: 1, opacity: 1 }} exit={{ scale: 0.9, opacity: 0 }}
+              onClick={e => e.stopPropagation()}
+              className="relative w-full max-w-sm rounded-2xl overflow-hidden border border-orange-500/20"
+              style={{ background: "rgba(10,10,20,0.95)", backdropFilter: "blur(20px)" }}
             >
-              {initials}
-            </button>
-          </DropdownMenuTrigger>
-          <DropdownMenuContent align="end" className="w-48">
-            <div className="px-2 py-1.5">
-              <p className="text-sm font-semibold">{empName}</p>
-              <p className="text-xs text-muted-foreground">{displayEmail}</p>
-            </div>
-            <DropdownMenuSeparator />
-            <DropdownMenuItem className="cursor-pointer">
-              <User className="w-4 h-4 mr-2" /> Profile
-            </DropdownMenuItem>
-            <DropdownMenuItem className="cursor-pointer">
-              <Settings className="w-4 h-4 mr-2" /> Settings
-            </DropdownMenuItem>
-            <DropdownMenuSeparator />
-            <DropdownMenuItem
-              onClick={() => navigate("/login")}
-              className="cursor-pointer text-destructive hover:!text-white focus:text-white"
-            >
-              <LogOut className="w-4 h-4 mr-2" /> Logout
-            </DropdownMenuItem>
-          </DropdownMenuContent>
-        </DropdownMenu>
-      </div>
-    </header>
+              {/* Header */}
+              <div className="flex items-center justify-between px-5 py-4 border-b border-white/10">
+                <div className="flex items-center gap-2">
+                  <div className="w-7 h-7 rounded-lg bg-orange-500/15 flex items-center justify-center">
+                    <ScanLine className="w-4 h-4 text-orange-400" />
+                  </div>
+                  <div>
+                    <p className="text-sm font-bold text-white">Scan Order QR</p>
+                    <p className="text-[10px] text-muted-foreground">Use camera to scan the QR code</p>
+                  </div>
+                </div>
+                <button onClick={closeScanner}
+                  className="w-7 h-7 rounded-lg bg-white/10 hover:bg-white/20 flex items-center justify-center transition-colors">
+                  <X className="w-3.5 h-3.5 text-white" />
+                </button>
+              </div>
+
+              <div className="p-5">
+                {/* Idle — show camera button */}
+                {!scanResult && !scanError && !scanning && (
+                  <div className="flex flex-col items-center gap-5 py-4">
+                    {/* QR frame illustration */}
+                    <div className="relative w-44 h-44 flex items-center justify-center">
+                      <div className="absolute top-0 left-0 w-10 h-10 border-t-2 border-l-2 border-orange-400 rounded-tl-xl" />
+                      <div className="absolute top-0 right-0 w-10 h-10 border-t-2 border-r-2 border-orange-400 rounded-tr-xl" />
+                      <div className="absolute bottom-0 left-0 w-10 h-10 border-b-2 border-l-2 border-orange-400 rounded-bl-xl" />
+                      <div className="absolute bottom-0 right-0 w-10 h-10 border-b-2 border-r-2 border-orange-400 rounded-br-xl" />
+                      <motion.div
+                        className="absolute left-2 right-2 h-0.5 bg-orange-400/60"
+                        style={{ boxShadow: "0 0 8px rgba(249,115,22,0.8)" }}
+                        animate={{ top: ["10%", "90%", "10%"] }}
+                        transition={{ duration: 2.5, repeat: Infinity, ease: "easeInOut" }}
+                      />
+                      <div className="w-16 h-16 rounded-2xl bg-orange-500/10 flex items-center justify-center">
+                        <Camera className="w-8 h-8 text-orange-400/60" />
+                      </div>
+                    </div>
+
+                    <motion.button
+                      whileHover={{ scale: 1.03 }}
+                      whileTap={{ scale: 0.97 }}
+                      onClick={() => fileInputRef.current?.click()}
+                      className="w-full py-3 rounded-xl text-sm font-bold text-white flex items-center justify-center gap-2"
+                      style={{ background: "linear-gradient(135deg, hsl(24 95% 53%), hsl(43 96% 52%))" }}
+                    >
+                      <Camera className="w-4 h-4" />
+                      Open Camera
+                    </motion.button>
+                    <p className="text-xs text-muted-foreground text-center">
+                      Tap the button to open your camera and scan the QR code
+                    </p>
+                  </div>
+                )}
+
+                {/* Scanning / processing */}
+                {scanning && (
+                  <div className="flex flex-col items-center gap-3 py-8">
+                    <motion.div animate={{ rotate: 360 }} transition={{ repeat: Infinity, duration: 0.9, ease: "linear" }}
+                      className="w-10 h-10 border-2 border-orange-400/30 border-t-orange-400 rounded-full" />
+                    <p className="text-sm text-muted-foreground">Reading QR code...</p>
+                  </div>
+                )}
+
+                {/* Error */}
+                {scanError && (
+                  <div className="flex flex-col items-center gap-3 py-6">
+                    <div className="w-14 h-14 rounded-full bg-red-500/10 border border-red-500/30 flex items-center justify-center">
+                      <AlertCircle className="w-7 h-7 text-red-400" />
+                    </div>
+                    <p className="text-sm font-semibold text-red-400 text-center">{scanError}</p>
+                    <motion.button
+                      whileTap={{ scale: 0.97 }}
+                      onClick={() => { setScanError(""); fileInputRef.current?.click(); }}
+                      className="px-5 py-2 rounded-xl text-sm font-bold text-white"
+                      style={{ background: "linear-gradient(135deg, hsl(24 95% 53%), hsl(43 96% 52%))" }}
+                    >
+                      Try Again
+                    </motion.button>
+                  </div>
+                )}
+
+                {/* Success result */}
+                {scanResult && (
+                  <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} className="space-y-4">
+                    <div className="flex flex-col items-center gap-2">
+                      <div className="w-14 h-14 rounded-full bg-emerald-500/10 border border-emerald-500/30 flex items-center justify-center">
+                        <CheckCircle className="w-7 h-7 text-emerald-400" />
+                      </div>
+                      <p className="text-sm font-bold text-white">QR Verified</p>
+                    </div>
+
+                    <div className="rounded-xl border border-white/10 overflow-hidden" style={{ background: "rgba(255,255,255,0.03)" }}>
+                      <div className="px-4 py-3 border-b border-white/10 flex items-center justify-between">
+                        <span className="text-[10px] text-muted-foreground uppercase tracking-widest font-semibold">Order ID</span>
+                        <span className="text-sm font-bold text-orange-400">#{scanResult.orderId}</span>
+                      </div>
+                      <div className="px-4 py-3 space-y-2">
+                        {scanResult.items.map((it, i) => (
+                          <div key={i} className="flex items-center justify-between">
+                            <span className="text-sm text-white">{it.name}</span>
+                            <span className="text-xs font-bold px-2 py-0.5 rounded-lg"
+                              style={{ background: "rgba(249,115,22,0.15)", color: "#fb923c" }}>
+                              ×{it.quantity}
+                            </span>
+                          </div>
+                        ))}
+                      </div>
+                      <div className="px-4 py-3 border-t border-white/10 flex items-center justify-between">
+                        <span className="text-xs text-muted-foreground">Total</span>
+                        <span className="text-base font-bold"
+                          style={{ background: "linear-gradient(135deg,#f97316,#fbbf24)", WebkitBackgroundClip: "text", WebkitTextFillColor: "transparent" }}>
+                          ₹{scanResult.total}
+                        </span>
+                      </div>
+                    </div>
+
+                    <button onClick={handleDone}
+                      className="w-full py-2.5 rounded-xl text-sm font-bold text-white"
+                      style={{ background: "linear-gradient(135deg,hsl(24 95% 53%),hsl(43 96% 52%))" }}>
+                      Done ✓
+                    </button>
+                  </motion.div>
+                )}
+              </div>
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+    </>
   );
 }

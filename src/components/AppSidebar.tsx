@@ -15,6 +15,7 @@ import {
   LogOut,
   ChevronLeft,
   ChevronRight,
+  BookOpen,
 } from "lucide-react";
 import { useAppStore, Role } from "@/store/appStore";
 
@@ -34,7 +35,10 @@ const roleMenus: Record<
     { label: "Today's Menu", icon: ChefHat, path: "/menu" },
     { label: "Orders", icon: ClipboardList, path: "/orders" },
   ],
-  user: [{ label: "Dashboard", icon: LayoutDashboard, path: "/" }],
+  user: [
+    { label: "Dashboard", icon: LayoutDashboard, path: "/" },
+    { label: "My Booking", icon: BookOpen, path: "/my-booking" },
+  ],
 };
 
 function ParallaxMenuItem({
@@ -105,19 +109,26 @@ function ParallaxMenuItem({
 interface AppSidebarProps {
   collapsed: boolean;
   onToggleCollapse: () => void;
+  onMobileClose?: () => void;
 }
 
-export function AppSidebar({ collapsed, onToggleCollapse }: AppSidebarProps) {
+export function AppSidebar({ collapsed, onToggleCollapse, onMobileClose }: AppSidebarProps) {
   const location = useLocation();
   const navigate = useNavigate();
-  const { currentRole } = useAppStore();
+  const { currentRole, setCurrentUser } = useAppStore();
+
+  const handleLogout = () => {
+    sessionStorage.removeItem('access_token');
+    setCurrentUser(null);
+    navigate('/login');
+  };
   const items = roleMenus[currentRole] ?? [];
 
   return (
     <motion.aside
       animate={{ width: collapsed ? 72 : 256 }}
       transition={{ duration: 0.3, ease: "easeInOut" }}
-      className="h-screen sticky top-0 flex flex-col z-40 overflow-hidden"
+      className="h-screen flex flex-col z-40 overflow-hidden"
       style={{
         background: "hsl(var(--sidebar-background))",
         borderRight: "1px solid hsl(var(--sidebar-border))",
@@ -150,14 +161,21 @@ export function AppSidebar({ collapsed, onToggleCollapse }: AppSidebarProps) {
           </div>
         )}
         <button
-          onClick={onToggleCollapse}
-          className="p-1.5 rounded-lg hover:bg-sidebar-accent text-sidebar-foreground/50 hover:text-sidebar-foreground transition-colors shrink-0"
+          onClick={() => { onToggleCollapse(); onMobileClose?.(); }}
+          className="p-1.5 rounded-lg hover:bg-sidebar-accent text-sidebar-foreground/50 hover:text-sidebar-foreground transition-colors shrink-0 lg:flex hidden"
         >
           {collapsed ? (
             <ChevronRight className="w-4 h-4" />
           ) : (
             <ChevronLeft className="w-4 h-4" />
           )}
+        </button>
+        {/* Mobile close button */}
+        <button
+          onClick={onMobileClose}
+          className="p-1.5 rounded-lg hover:bg-sidebar-accent text-sidebar-foreground/50 hover:text-sidebar-foreground transition-colors shrink-0 lg:hidden"
+        >
+          <ChevronLeft className="w-4 h-4" />
         </button>
       </div>
 
@@ -180,7 +198,7 @@ export function AppSidebar({ collapsed, onToggleCollapse }: AppSidebarProps) {
 
       <div className="px-3 mb-4 shrink-0">
         <button
-          onClick={() => navigate("/login")}
+          onClick={handleLogout}
           className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-red-500 hover:bg-red-500/15 hover:text-red-400 transition-all duration-200 ${
             collapsed ? "justify-center" : ""
           }`}
