@@ -24,7 +24,7 @@ app.add_middleware(
     # ],
     allow_origins=["https://cp-dining.onrender.com"],
     # allow_origins=["*"],
-    allow_credentials=False,
+    allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
 )
