@@ -1,5 +1,5 @@
-import { useRef, useState } from "react";
-import { LogOut, User, Settings, Menu, ScanLine, X, CheckCircle, AlertCircle, Camera } from "lucide-react";
+import { useEffect, useRef, useState } from "react";
+import { LogOut, User, Settings, Menu, ScanLine, X, CheckCircle, AlertCircle } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 import { useAppStore, Role } from "@/store/appStore";
 import { Badge } from "@/components/ui/badge";
@@ -47,7 +47,11 @@ export function TopHeader({ collapsed, onToggleCollapse, onMobileMenuOpen }: Top
   const [scanResult, setScanResult] = useState<ScanResult | null>(null);
   const [scanError, setScanError] = useState("");
   const [scanning, setScanning] = useState(false);
-  const fileInputRef = useRef<HTMLInputElement>(null);
+  const videoRef = useRef<HTMLVideoElement>(null);
+  const canvasRef = useRef<HTMLCanvasElement>(null);
+  const streamRef = useRef<MediaStream | null>(null);
+  const rafRef = useRef<number | null>(null);
+  const activeRef = useRef(false);
 
   const empName = (currentUser as any)?.emp_name ?? roleLabels[currentRole] ?? "User";
   const displayEmail = (currentUser as any)?.emp_mail ?? "";
@@ -57,6 +61,14 @@ export function TopHeader({ collapsed, onToggleCollapse, onMobileMenuOpen }: Top
       ? (nameParts[0][0] + nameParts[nameParts.length - 1][0]).toUpperCase()
       : nameParts[0][0].toUpperCase();
 
+  const stopCamera = () => {
+    activeRef.current = false;
+    if (rafRef.current) cancelAnimationFrame(rafRef.current);
+    streamRef.current?.getTracks().forEach(t => t.stop());
+    rafRef.current = null;
+    streamRef.current = null;
+  };
+
   const openScanner = () => {
     setScanResult(null);
     setScanError("");
@@ -64,56 +76,77 @@ export function TopHeader({ collapsed, onToggleCollapse, onMobileMenuOpen }: Top
   };
 
   const closeScanner = () => {
+    stopCamera();
     setShowScanner(false);
     setScanResult(null);
     setScanError("");
     setScanning(false);
   };
 
+  useEffect(() => {
+    if (!showScanner || scanResult) return;
+    let cancelled = false;
+    const init = async () => {
+      try {
+        const stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: 'environment' } });
+        if (cancelled) { stream.getTracks().forEach(t => t.stop()); return; }
+        streamRef.current = stream;
+        const video = videoRef.current;
+        if (!video) return;
+        video.srcObject = stream;
+        await video.play();
+        activeRef.current = true;
+        const tick = () => {
+          if (!activeRef.current) return;
+          const canvas = canvasRef.current;
+          if (canvas && video.readyState === video.HAVE_ENOUGH_DATA) {
+            canvas.width = video.videoWidth;
+            canvas.height = video.videoHeight;
+            const ctx = canvas.getContext('2d')!;
+            ctx.drawImage(video, 0, 0);
+            const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
+            const code = jsQR(imageData.data, imageData.width, imageData.height);
+            if (code?.data) {
+              activeRef.current = false;
+              stopCamera();
+              setScanning(true);
+              const raw = code.data.trim();
+              let orderId = raw.split('/').pop() ?? raw;
+              try {
+                const url = new URL(raw);
+                orderId = url.searchParams.get('order_id') ?? orderId;
+              } catch {}
+              ApiService.get(`/api/admin/scan/${orderId}`)
+                .then(res => {
+                  const d = res.data;
+                  setScanResult({
+                    orderId: String(d.order_id ?? orderId),
+                    items: d.items?.map((it: any) => ({ name: it.name ?? `Item #${it.menu_id}`, quantity: it.quantity })) ?? [],
+                    total: d.total_amount ?? 0,
+                  });
+                })
+                .catch(() => setScanError('Failed to fetch order. Try again.'))
+                .finally(() => setScanning(false));
+              return;
+            }
+          }
+          rafRef.current = requestAnimationFrame(tick);
+        };
+        rafRef.current = requestAnimationFrame(tick);
+      } catch {
+        if (!cancelled) { setScanError('Camera access denied or not available.'); }
+      }
+    };
+    init();
+    return () => { cancelled = true; stopCamera(); };
+  }, [showScanner]);
+
   const handleDone = async () => {
     if (scanResult?.orderId) {
+      await ApiService.post(`/api/admin/order/${scanResult.orderId}/status`, { order_id: Number(scanResult.orderId), status: 'approved' }).catch(() => {});
       window.dispatchEvent(new CustomEvent('qr-order-received', { detail: { orderId: scanResult.orderId } }));
-      ApiService.post(`/api/admin/scan/${scanResult.orderId}`, {}).catch(() => {});
     }
     closeScanner();
-  };
-
-  const handleCapture = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (!file) return;
-    setScanning(true);
-    setScanError("");
-
-    const reader = new FileReader();
-    reader.onload = (ev) => {
-      const img = new Image();
-      img.onload = () => {
-        const canvas = document.createElement("canvas");
-        canvas.width = img.width;
-        canvas.height = img.height;
-        const ctx = canvas.getContext("2d");
-        if (!ctx) { setScanError("Failed to process image."); setScanning(false); return; }
-        ctx.drawImage(img, 0, 0);
-        const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
-        const code = jsQR(imageData.data, imageData.width, imageData.height);
-        setScanning(false);
-        if (!code) { setScanError("No QR code found. Try again."); return; }
-        try {
-          const url = new URL(code.data);
-          const orderId = url.searchParams.get("order_id") ?? "";
-          const itemsRaw = url.searchParams.get("items") ?? "[]";
-          const total = parseFloat(url.searchParams.get("total") ?? "0");
-          const items = JSON.parse(decodeURIComponent(itemsRaw));
-          setScanResult({ orderId, items, total });
-        } catch {
-          setScanError("Invalid QR code.");
-        }
-      };
-      img.src = ev.target?.result as string;
-    };
-    reader.readAsDataURL(file);
-    // reset input so same file can be re-selected
-    e.target.value = "";
   };
 
   return (
@@ -185,16 +218,6 @@ export function TopHeader({ collapsed, onToggleCollapse, onMobileMenuOpen }: Top
         </div>
       </header>
 
-      {/* Hidden file input — opens native camera */}
-      <input
-        ref={fileInputRef}
-        type="file"
-        accept="image/*"
-        capture="environment"
-        className="hidden"
-        onChange={handleCapture}
-      />
-
       {/* QR Scanner Modal */}
       <AnimatePresence>
         {showScanner && (
@@ -227,39 +250,21 @@ export function TopHeader({ collapsed, onToggleCollapse, onMobileMenuOpen }: Top
               </div>
 
               <div className="p-5">
-                {/* Idle — show camera button */}
+                {/* Live camera feed */}
                 {!scanResult && !scanError && !scanning && (
-                  <div className="flex flex-col items-center gap-5 py-4">
-                    {/* QR frame illustration */}
-                    <div className="relative w-44 h-44 flex items-center justify-center">
-                      <div className="absolute top-0 left-0 w-10 h-10 border-t-2 border-l-2 border-orange-400 rounded-tl-xl" />
-                      <div className="absolute top-0 right-0 w-10 h-10 border-t-2 border-r-2 border-orange-400 rounded-tr-xl" />
-                      <div className="absolute bottom-0 left-0 w-10 h-10 border-b-2 border-l-2 border-orange-400 rounded-bl-xl" />
-                      <div className="absolute bottom-0 right-0 w-10 h-10 border-b-2 border-r-2 border-orange-400 rounded-br-xl" />
-                      <motion.div
-                        className="absolute left-2 right-2 h-0.5 bg-orange-400/60"
-                        style={{ boxShadow: "0 0 8px rgba(249,115,22,0.8)" }}
-                        animate={{ top: ["10%", "90%", "10%"] }}
-                        transition={{ duration: 2.5, repeat: Infinity, ease: "easeInOut" }}
-                      />
-                      <div className="w-16 h-16 rounded-2xl bg-orange-500/10 flex items-center justify-center">
-                        <Camera className="w-8 h-8 text-orange-400/60" />
+                  <div className="flex flex-col items-center gap-3">
+                    <div className="relative w-full rounded-xl overflow-hidden">
+                      <video ref={videoRef} className="w-full rounded-xl" playsInline muted />
+                      <canvas ref={canvasRef} className="hidden" />
+                      {/* Corner brackets overlay */}
+                      <div className="absolute inset-0 pointer-events-none">
+                        <div className="absolute top-3 left-3 w-8 h-8 border-t-2 border-l-2 border-orange-400 rounded-tl-lg" />
+                        <div className="absolute top-3 right-3 w-8 h-8 border-t-2 border-r-2 border-orange-400 rounded-tr-lg" />
+                        <div className="absolute bottom-3 left-3 w-8 h-8 border-b-2 border-l-2 border-orange-400 rounded-bl-lg" />
+                        <div className="absolute bottom-3 right-3 w-8 h-8 border-b-2 border-r-2 border-orange-400 rounded-br-lg" />
                       </div>
                     </div>
-
-                    <motion.button
-                      whileHover={{ scale: 1.03 }}
-                      whileTap={{ scale: 0.97 }}
-                      onClick={() => fileInputRef.current?.click()}
-                      className="w-full py-3 rounded-xl text-sm font-bold text-white flex items-center justify-center gap-2"
-                      style={{ background: "linear-gradient(135deg, hsl(24 95% 53%), hsl(43 96% 52%))" }}
-                    >
-                      <Camera className="w-4 h-4" />
-                      Open Camera
-                    </motion.button>
-                    <p className="text-xs text-muted-foreground text-center">
-                      Tap the button to open your camera and scan the QR code
-                    </p>
+                    <p className="text-xs text-muted-foreground text-center">Point camera at the order QR code</p>
                   </div>
                 )}
 
@@ -281,7 +286,7 @@ export function TopHeader({ collapsed, onToggleCollapse, onMobileMenuOpen }: Top
                     <p className="text-sm font-semibold text-red-400 text-center">{scanError}</p>
                     <motion.button
                       whileTap={{ scale: 0.97 }}
-                      onClick={() => { setScanError(""); fileInputRef.current?.click(); }}
+                      onClick={() => { setScanError(""); openScanner(); }}
                       className="px-5 py-2 rounded-xl text-sm font-bold text-white"
                       style={{ background: "linear-gradient(135deg, hsl(24 95% 53%), hsl(43 96% 52%))" }}
                     >

@@ -61,7 +61,7 @@ export default function AdminOrders() {
     fetchOrders();
     const handler = (e: Event) => {
       const { orderId } = (e as CustomEvent).detail;
-      setOrders(prev => prev.map(o => o.id === Number(orderId) ? { ...o, status: 'received' } : o));
+      setOrders(prev => prev.map(o => o.id === Number(orderId) ? { ...o, status: 'approved' } : o));
     };
     window.addEventListener('qr-order-received', handler);
     return () => window.removeEventListener('qr-order-received', handler);
@@ -251,11 +251,11 @@ export default function AdminOrders() {
                         <td className="px-5 py-4"><p className="text-sm font-bold">₹{order.total_amount}</p></td>
                         <td className="px-5 py-4">
                           <span className={`text-[10px] font-bold px-2.5 py-1 rounded-full border ${
-                            order.status === 'received'
+                            order.status === 'approved'
                               ? 'bg-emerald-500/15 text-emerald-400 border-emerald-500/30'
                               : 'bg-amber-500/15 text-amber-400 border-amber-500/30'
                           }`}>
-                            {order.status === 'received' ? '✓ Received' : '⏳ Pending'}
+                            {order.status === 'approved' ? '✓ Approved' : '⏳ Pending'}
                           </span>
                         </td>
                         <td className="px-5 py-4">
@@ -301,11 +301,11 @@ export default function AdminOrders() {
                       <span className="text-xs font-bold text-orange-400">#{order.id}</span>
                       <div className="flex items-center gap-2">
                         <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full border ${
-                          order.status === 'received'
+                          order.status === 'approved'
                             ? 'bg-emerald-500/15 text-emerald-400 border-emerald-500/30'
                             : 'bg-amber-500/15 text-amber-400 border-amber-500/30'
                         }`}>
-                          {order.status === 'received' ? '✓ Received' : '⏳ Pending'}
+                          {order.status === 'approved' ? '✓ Approved' : '⏳ Pending'}
                         </span>
                         <span className="text-sm font-bold">₹{order.total_amount}</span>
                       </div>
