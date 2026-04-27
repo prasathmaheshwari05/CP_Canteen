@@ -11,6 +11,7 @@ from app.routes import today_menu_routes
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 import os
+
 os.makedirs("qrcodes", exist_ok=True)
 app = FastAPI()
 app.add_middleware(
@@ -21,7 +22,8 @@ app.add_middleware(
     #     "http://localhost:5500",
     #     "http://172.17.7.211:8080",
     # ],
-    allow_origins=["*"],
+    allow_origins=["https://your-frontend.onrender.com"],
+    # allow_origins=["*"],
     allow_credentials=False,
     allow_methods=["*"],
     allow_headers=["*"],
