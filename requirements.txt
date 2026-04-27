@@ -4,9 +4,10 @@ psycopg2-binary
 sqlalchemy
 python-multipart
 python-jose[cryptography]
-passlib[bcrypt]
 python-dotenv
 razorpay
 pytz
 qrcode[pil]
 email-validator
+passlib[bcrypt]==1.7.4
+bcrypt==4.0.1
