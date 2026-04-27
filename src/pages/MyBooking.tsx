@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { BookOpen, Package, X, Clock } from 'lucide-react';
+import { BookOpen, Package, X } from 'lucide-react';
 import { toast } from 'sonner';
 import { QRCodeSVG } from 'qrcode.react';
 import ApiService from '@/api/apiServices';
@@ -48,7 +48,6 @@ export default function MyBooking() {
 
   const today = toDateStr(new Date());
   const todayOrders = orders.filter(o => o.created_at && toDateStr(new Date(o.created_at)) === today);
-  const pastOrders  = orders.filter(o => o.created_at && toDateStr(new Date(o.created_at)) !== today);
 
 if (loading) return (
     <div className="flex items-center justify-center py-24">
@@ -130,52 +129,14 @@ if (loading) return (
         )}
       </div>
 
-      {/* Past Bookings */}
-      {pastOrders.length > 0 && (
-        <div>
-          <div className="flex items-center gap-2 mb-4">
-            <div className="w-7 h-7 rounded-lg bg-muted/50 flex items-center justify-center">
-              <Clock className="w-4 h-4 text-muted-foreground" />
-            </div>
-            <div>
-              <p className="text-sm font-bold">Past Bookings</p>
-              <p className="text-xs text-muted-foreground">QR codes expired</p>
-            </div>
-          </div>
-          <div className="bg-card rounded-2xl border border-border/60 overflow-hidden">
-            {pastOrders.map((order, i) => (
-              <motion.div key={order.id}
-                initial={{ opacity: 0, x: -6 }} animate={{ opacity: 1, x: 0 }} transition={{ delay: i * 0.04 }}
-                className="flex items-center justify-between px-5 py-3.5 border-b border-border/30 last:border-0">
-                <div className="flex items-center gap-3">
-                  <div className="w-8 h-8 rounded-lg bg-muted/40 flex items-center justify-center">
-                    <BookOpen className="w-4 h-4 text-muted-foreground" />
-                  </div>
-                  <div>
-                    <p className="text-sm font-semibold">Order #{order.id}</p>
-                    <p className="text-xs text-muted-foreground">
-                      {new Date(order.created_at).toLocaleDateString([], { day: '2-digit', month: 'short', year: 'numeric' })}
-                    </p>
-                  </div>
-                </div>
-                <div className="flex items-center gap-3">
-                  <span className="text-[10px] font-semibold px-2 py-0.5 rounded-full bg-muted/50 text-muted-foreground border border-border/50">
-                    QR Expired
-                  </span>
-                  <span className="text-sm font-bold">₹{order.total_amount}</span>
-                </div>
-              </motion.div>
-            ))}
-          </div>
-        </div>
-      )}
+
 
       {/* QR Expand Modal */}
       <AnimatePresence>
         {selectedOrder && (
           <motion.div
             initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
-            className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm"
+            className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4 !mt-0"
             onClick={() => setSelectedOrder(null)}
           >
             <motion.div
@@ -183,7 +144,7 @@ if (loading) return (
               onClick={e => e.stopPropagation()}
               className="bg-card border border-border/60 rounded-2xl shadow-2xl w-full max-w-xs mx-4 overflow-hidden"
             >
-              <div className="flex items-center justify-between px-5 py-4 border-b border-border/50">
+              <div className="flex items-center justify-between px-5 py-3 border-b border-border/50">
                 <div>
                   <p className="text-sm font-bold">Order #{selectedOrder.id}</p>
                   <p className="text-xs text-muted-foreground mt-0.5">Scan to verify</p>
@@ -193,7 +154,7 @@ if (loading) return (
                   <X className="w-3.5 h-3.5" />
                 </button>
               </div>
-              <div className="p-6 flex flex-col items-center gap-4">
+              <div className="px-4 pb-4 flex flex-col items-center gap-3">
                 <div className="p-3 bg-white rounded-2xl shadow-lg">
                   <QRCodeSVG
                     value={buildAcknowledgedUrl(selectedOrder, getMenuName)}
