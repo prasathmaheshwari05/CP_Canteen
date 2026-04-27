@@ -31,6 +31,7 @@ interface ScanResult {
   orderId: string;
   items: { name: string; quantity: number }[];
   total: number;
+  alreadyApproved?: boolean;
 }
 
 interface TopHeaderProps {
@@ -119,11 +120,20 @@ export function TopHeader({ collapsed, onToggleCollapse, onMobileMenuOpen }: Top
               ApiService.get(`/api/admin/scan/${orderId}`)
                 .then(res => {
                   const d = res.data;
-                  setScanResult({
-                    orderId: String(d.order_id ?? orderId),
-                    items: d.items?.map((it: any) => ({ name: it.name ?? `Item #${it.menu_id}`, quantity: it.quantity })) ?? [],
-                    total: d.total_amount ?? 0,
-                  });
+                  if (d.status === 'approved') {
+                    setScanResult({
+                      orderId: String(d.order_id ?? orderId),
+                      items: [],
+                      total: d.total_amount ?? 0,
+                      alreadyApproved: true,
+                    });
+                  } else {
+                    setScanResult({
+                      orderId: String(d.order_id ?? orderId),
+                      items: d.items?.map((it: any) => ({ name: it.name ?? `Item #${it.menu_id}`, quantity: it.quantity })) ?? [],
+                      total: d.total_amount ?? 0,
+                    });
+                  }
                 })
                 .catch(() => setScanError('Failed to fetch order. Try again.'))
                 .finally(() => setScanning(false));
@@ -298,43 +308,65 @@ export function TopHeader({ collapsed, onToggleCollapse, onMobileMenuOpen }: Top
                 {/* Success result */}
                 {scanResult && (
                   <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} className="space-y-4">
-                    <div className="flex flex-col items-center gap-2">
-                      <div className="w-14 h-14 rounded-full bg-emerald-500/10 border border-emerald-500/30 flex items-center justify-center">
-                        <CheckCircle className="w-7 h-7 text-emerald-400" />
+                    {scanResult.alreadyApproved ? (
+                      /* Already collected */
+                      <div className="flex flex-col items-center gap-4 py-4">
+                        <div className="w-16 h-16 rounded-full bg-amber-500/10 border-2 border-amber-500/40 flex items-center justify-center">
+                          <AlertCircle className="w-8 h-8 text-amber-400" />
+                        </div>
+                        <div className="text-center space-y-1">
+                          <p className="text-sm font-bold text-white">Order Already Collected</p>
+                          <p className="text-xs text-muted-foreground">Order <span className="text-orange-400 font-semibold">#{scanResult.orderId}</span> has already been approved and collected.</p>
+                          <p className="text-xs text-amber-400/80 font-medium mt-2">This meal has already been served to the employee.</p>
+                        </div>
+                        <button onClick={closeScanner}
+                          className="w-full py-2.5 rounded-xl text-sm font-bold text-white"
+                          style={{ background: 'linear-gradient(135deg, hsl(24 95% 53%), hsl(43 96% 52%))' }}>
+                          Close
+                        </button>
                       </div>
-                      <p className="text-sm font-bold text-white">QR Verified</p>
-                    </div>
+                    ) : (
+                      /* Normal approve flow */
+                      <>
+                        <div className="flex flex-col items-center gap-2">
+                          <div className="w-14 h-14 rounded-full bg-emerald-500/10 border border-emerald-500/30 flex items-center justify-center">
+                            <CheckCircle className="w-7 h-7 text-emerald-400" />
+                          </div>
+                          <p className="text-sm font-bold text-white">QR Verified</p>
+                        </div>
 
-                    <div className="rounded-xl border border-white/10 overflow-hidden" style={{ background: "rgba(255,255,255,0.03)" }}>
-                      <div className="px-4 py-3 border-b border-white/10 flex items-center justify-between">
-                        <span className="text-[10px] text-muted-foreground uppercase tracking-widest font-semibold">Order ID</span>
-                        <span className="text-sm font-bold text-orange-400">#{scanResult.orderId}</span>
-                      </div>
-                      <div className="px-4 py-3 space-y-2">
-                        {scanResult.items.map((it, i) => (
-                          <div key={i} className="flex items-center justify-between">
-                            <span className="text-sm text-white">{it.name}</span>
-                            <span className="text-xs font-bold px-2 py-0.5 rounded-lg"
-                              style={{ background: "rgba(249,115,22,0.15)", color: "#fb923c" }}>
-                              ×{it.quantity}
+                        <div className="rounded-xl border border-white/10 overflow-hidden" style={{ background: "rgba(255,255,255,0.03)" }}>
+                          <div className="px-4 py-3 border-b border-white/10 flex items-center justify-between">
+                            <span className="text-[10px] text-muted-foreground uppercase tracking-widest font-semibold">Order ID</span>
+                            <span className="text-sm font-bold text-orange-400">#{scanResult.orderId}</span>
+                          </div>
+                          <div className="px-4 py-3 space-y-2">
+                            {scanResult.items.map((it, i) => (
+                              <div key={i} className="flex items-center justify-between">
+                                <span className="text-sm text-white">{it.name}</span>
+                                <span className="text-xs font-bold px-2 py-0.5 rounded-lg"
+                                  style={{ background: "rgba(249,115,22,0.15)", color: "#fb923c" }}>
+                                  ×{it.quantity}
+                                </span>
+                              </div>
+                            ))}
+                          </div>
+                          <div className="px-4 py-3 border-t border-white/10 flex items-center justify-between">
+                            <span className="text-xs text-muted-foreground">Total</span>
+                            <span className="text-base font-bold"
+                              style={{ background: "linear-gradient(135deg,#f97316,#fbbf24)", WebkitBackgroundClip: "text", WebkitTextFillColor: "transparent" }}>
+                              ₹{scanResult.total}
                             </span>
                           </div>
-                        ))}
-                      </div>
-                      <div className="px-4 py-3 border-t border-white/10 flex items-center justify-between">
-                        <span className="text-xs text-muted-foreground">Total</span>
-                        <span className="text-base font-bold"
-                          style={{ background: "linear-gradient(135deg,#f97316,#fbbf24)", WebkitBackgroundClip: "text", WebkitTextFillColor: "transparent" }}>
-                          ₹{scanResult.total}
-                        </span>
-                      </div>
-                    </div>
+                        </div>
 
-                    <button onClick={handleDone}
-                      className="w-full py-2.5 rounded-xl text-sm font-bold text-white"
-                      style={{ background: "linear-gradient(135deg,hsl(24 95% 53%),hsl(43 96% 52%))" }}>
-                      Done ✓
-                    </button>
+                        <button onClick={handleDone}
+                          className="w-full py-2.5 rounded-xl text-sm font-bold text-white"
+                          style={{ background: "linear-gradient(135deg,hsl(24 95% 53%),hsl(43 96% 52%))" }}>
+                          Done ✓
+                        </button>
+                      </>
+                    )}
                   </motion.div>
                 )}
               </div>
