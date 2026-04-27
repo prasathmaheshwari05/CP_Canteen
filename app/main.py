@@ -26,6 +26,7 @@ app.add_middleware(
         "https://cp-dining.onrender.com",
         "http://localhost:8080",
         "http://172.17.7.211:8080",
+        "http://172.29.96.1:8080",
     ],
     # allow_origins=["*"],
     allow_credentials=True,
