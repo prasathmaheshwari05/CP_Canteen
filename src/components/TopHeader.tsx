@@ -154,11 +154,16 @@ export function TopHeader({ collapsed, onToggleCollapse, onMobileMenuOpen }: Top
   const handleDone = async () => {
     if (scanResult?.orderId) {
       try {
-        await ApiService.put(`/api/admin/order/${scanResult.orderId}/status`, { order_id: Number(scanResult.orderId), status: 'approved' });
+        await ApiService.put(`/api/admin/order/${scanResult.orderId}/status`, { status: 'approved' });
         window.dispatchEvent(new CustomEvent('qr-order-received', { detail: { orderId: scanResult.orderId } }));
         closeScanner();
       } catch (err: any) {
-        setScanError(ApiService.handleAxiosError(err, 'Failed to update order status'));
+        const msg = err?.response?.data?.detail;
+        const errorText = Array.isArray(msg)
+          ? msg.map((e: any) => e.msg).join(', ')
+          : typeof msg === 'string' ? msg : ApiService.handleAxiosError(err, 'Failed to update order status');
+        setScanError(errorText);
+        setScanResult(null);
       }
     }
   };
