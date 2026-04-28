@@ -147,8 +147,18 @@ export function TopHeader({
                 orderId = url.searchParams.get("order_id") ?? orderId;
               } catch {}
               ApiService.get(`/api/admin/scan/${orderId}`)
-                .then((res) => {
+                .then(async (res) => {
                   const d = res.data;
+                  console.log('Scan response:', JSON.stringify(d));
+                  // fetch menu to resolve names
+                  let menuMap: Record<number, string> = {};
+                  try {
+                    const mRes = await ApiService.get('/api/today-menu');
+                    console.log('Menu response:', JSON.stringify(mRes.data?.slice(0,3)));
+                    (mRes.data ?? []).forEach((m: any) => {
+                      menuMap[m.menu_id ?? m.id] = m.name;
+                    });
+                  } catch {}
                   if (d.status === "approved") {
                     setScanResult({
                       orderId: String(d.order_id ?? orderId),
@@ -161,7 +171,7 @@ export function TopHeader({
                       orderId: String(d.order_id ?? orderId),
                       items:
                         d.items?.map((it: any) => ({
-                          name: it.name ?? `Item #${it.menu_id}`,
+                          name: it.name ?? it.menu_name ?? menuMap[it.menu_id] ?? `Item #${it.menu_id}`,
                           quantity: it.quantity,
                         })) ?? [],
                       total: d.total_amount ?? 0,
@@ -347,7 +357,7 @@ export function TopHeader({
                       <video
                         ref={videoRef}
                         className="w-full rounded-xl"
-                        style={{ minHeight: '280px', background: '#000' }}
+                        style={{ minHeight: "280px", background: "#000" }}
                         playsInline
                         muted
                       />
@@ -434,9 +444,6 @@ export function TopHeader({
                             </span>{" "}
                             has already been approved and collected.
                           </p>
-                          <p className="text-xs text-amber-400/80 font-medium mt-2">
-                            This meal has already been served to the employee.
-                          </p>
                         </div>
                         <button
                           onClick={closeScanner}
@@ -493,22 +500,6 @@ export function TopHeader({
                                 </span>
                               </div>
                             ))}
-                          </div>
-                          <div className="px-4 py-3 border-t border-white/10 flex items-center justify-between">
-                            <span className="text-xs text-muted-foreground">
-                              Total
-                            </span>
-                            <span
-                              className="text-base font-bold"
-                              style={{
-                                background:
-                                  "linear-gradient(135deg,#f97316,#fbbf24)",
-                                WebkitBackgroundClip: "text",
-                                WebkitTextFillColor: "transparent",
-                              }}
-                            >
-                              ₹{scanResult.total}
-                            </span>
                           </div>
                         </div>
 
