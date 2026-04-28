@@ -11,14 +11,12 @@ import { Switch } from '@/components/ui/switch';
 import { toast } from 'sonner';
 import ApiService from '@/api/apiServices';
 
-const categories = ['Breakfast', 'Lunch', 'Dinner', 'Snacks', 'Beverages'] as const;
+const categories = ['Breakfast', 'Lunch', 'Dinner'] as const;
 
 const catMeta: Record<string, { pill: string; bar: string; emoji: string; bg: string }> = {
   Breakfast: { pill: 'bg-amber-100 text-amber-600 border-amber-200',    bar: 'bg-amber-400',   emoji: '🌅', bg: 'bg-amber-50' },
   Lunch:     { pill: 'bg-emerald-100 text-emerald-600 border-emerald-200', bar: 'bg-emerald-400', emoji: '☀️', bg: 'bg-emerald-50' },
-  Dinner:    { pill: 'bg-violet-100 text-violet-600 border-violet-200',  bar: 'bg-violet-400',  emoji: '🌙', bg: 'bg-violet-50' },
-  Snacks:    { pill: 'bg-rose-100 text-rose-600 border-rose-200',        bar: 'bg-rose-400',    emoji: '🍿', bg: 'bg-rose-50' },
-  Beverages: { pill: 'bg-sky-100 text-sky-600 border-sky-200',           bar: 'bg-sky-400',     emoji: '☕', bg: 'bg-sky-50' },
+  Dinner:    { pill: 'bg-violet-100 text-violet-600 border-violet-200',  bar: 'bg-violet-400',  emoji: '🌙', bg: 'bg-violet-50' }
 };
 
 const emptyForm = { name: '', price: '', category: '' as Product['category'], available: true, description: '' };

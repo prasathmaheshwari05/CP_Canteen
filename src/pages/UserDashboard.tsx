@@ -13,16 +13,12 @@ import ApiService from "@/api/apiServices";
 const catEmojis: Record<string, string> = {
   Breakfast: "🌅",
   Lunch: "☀️",
-  Dinner: "🌙",
-  Snacks: "🍿",
-  Beverages: "☕",
+  Dinner: "🌙"
 };
 const catColors: Record<string, string> = {
   Breakfast: "bg-amber-500/15 text-amber-400 border-amber-500/25",
   Lunch: "bg-emerald-500/15 text-emerald-400 border-emerald-500/25",
-  Dinner: "bg-orange-500/15 text-orange-400 border-orange-500/25",
-  Snacks: "bg-red-500/15 text-red-400 border-red-500/25",
-  Beverages: "bg-blue-500/15 text-blue-400 border-blue-500/25",
+  Dinner: "bg-orange-500/15 text-orange-400 border-orange-500/25"
 };
 
 const foodSlides = [

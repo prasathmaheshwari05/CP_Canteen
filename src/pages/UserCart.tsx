@@ -7,7 +7,7 @@ import { toast } from 'sonner';
 import { Link } from 'react-router-dom';
 
 const catEmojis: Record<string, string> = {
-  Breakfast: '🌅', Lunch: '☀️', Dinner: '🌙', Snacks: '🍿', Beverages: '☕',
+  Breakfast: '🌅', Lunch: '☀️', Dinner: '🌙'
 };
 
 export default function UserCart() {

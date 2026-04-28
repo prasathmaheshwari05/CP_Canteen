@@ -13,7 +13,7 @@ export interface Product {
   id: string;
   name: string;
   price: number;
-  category: 'Breakfast' | 'Lunch' | 'Dinner' | 'Snacks' | 'Beverages';
+  category: 'Breakfast' | 'Lunch' | 'Dinner';
   available: boolean;
   images: string[];
   description?: string;

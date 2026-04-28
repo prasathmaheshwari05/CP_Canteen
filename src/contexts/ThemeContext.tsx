@@ -7,12 +7,12 @@ interface ThemeContextType {
   toggleTheme: () => void;
 }
 
-const ThemeContext = createContext<ThemeContextType>({ theme: 'dark', toggleTheme: () => {} });
+const ThemeContext = createContext<ThemeContextType>({ theme: 'light', toggleTheme: () => {} });
 
 export function ThemeProvider({ children }: { children: ReactNode }) {
   const [theme, setTheme] = useState<Theme>(() => {
     const stored = localStorage.getItem('cafeteria-theme');
-    return (stored === 'light' || stored === 'dark') ? stored : 'dark';
+    return (stored === 'light' || stored === 'dark') ? stored : 'light';
   });
 
   useEffect(() => {

@@ -1,6 +1,7 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
+import ReactDOM from 'react-dom';
 import { motion, AnimatePresence } from 'framer-motion';
-import { ShoppingBag, Users, IndianRupee, Package, X, ChevronLeft, ChevronRight, Utensils, Calendar } from 'lucide-react';
+import { ShoppingBag, Users, IndianRupee, Package, X, ChevronLeft, ChevronRight, Utensils, CalendarDays, RefreshCw, Sparkles } from 'lucide-react';
 import { toast } from 'sonner';
 import ApiService from '@/api/apiServices';
 
@@ -15,7 +16,208 @@ interface Order {
 }
 interface User { id: number; emp_id: number; emp_name: string; emp_mail: string; role: string; }
 
-const toDateStr = (d: Date) => d.toISOString().slice(0, 10);
+const toDateStr = (d: Date) => {
+  const y = d.getFullYear();
+  const m = String(d.getMonth() + 1).padStart(2, '0');
+  const day = String(d.getDate()).padStart(2, '0');
+  return `${y}-${m}-${day}`;
+};
+
+const MONTHS = ['January','February','March','April','May','June','July','August','September','October','November','December'];
+const DAYS   = ['Su','Mo','Tu','We','Th','Fr','Sa'];
+
+function AiCalendar({ value, max, onChange }: { value: string; max: string; onChange: (v: string) => void }) {
+  const [open, setOpen]     = useState(false);
+  const [view, setView]     = useState<'days'|'months'|'years'>('days');
+  const [pos, setPos]       = useState({ top: 0, right: 0 });
+  const triggerRef          = useRef<HTMLButtonElement>(null);
+  const dropdownRef         = useRef<HTMLDivElement>(null);
+
+  const selected = value ? new Date(value + 'T00:00:00') : new Date();
+  const [cursor, setCursor] = useState({ y: selected.getFullYear(), m: selected.getMonth() });
+  const maxDate = new Date(max + 'T00:00:00');
+  const today   = new Date(toDateStr(new Date()) + 'T00:00:00');
+
+  useEffect(() => {
+    const handler = (e: MouseEvent) => {
+      if (
+        triggerRef.current && !triggerRef.current.contains(e.target as Node) &&
+        dropdownRef.current && !dropdownRef.current.contains(e.target as Node)
+      ) setOpen(false);
+    };
+    document.addEventListener('mousedown', handler);
+    return () => document.removeEventListener('mousedown', handler);
+  }, []);
+
+  const handleOpen = () => {
+    if (triggerRef.current) {
+      const rect = triggerRef.current.getBoundingClientRect();
+      setPos({ top: rect.bottom + window.scrollY + 8, right: window.innerWidth - rect.right });
+    }
+    setOpen(o => !o);
+  };
+
+  const firstDay = new Date(cursor.y, cursor.m, 1).getDay();
+  const daysInMonth = new Date(cursor.y, cursor.m + 1, 0).getDate();
+  const cells = Array.from({ length: firstDay + daysInMonth }, (_, i) => i < firstDay ? null : i - firstDay + 1);
+
+  const pick = (day: number) => {
+    const d = new Date(cursor.y, cursor.m, day);
+    if (d > maxDate) return;
+    onChange(toDateStr(d));
+    setOpen(false);
+  };
+
+  const prevMonth = () => setCursor(c => c.m === 0 ? { y: c.y - 1, m: 11 } : { y: c.y, m: c.m - 1 });
+  const nextMonth = () => {
+    const next = cursor.m === 11 ? { y: cursor.y + 1, m: 0 } : { y: cursor.y, m: cursor.m + 1 };
+    if (new Date(next.y, next.m, 1) <= maxDate) setCursor(next);
+  };
+
+  const yearRange = Array.from({ length: 12 }, (_, i) => cursor.y - 5 + i);
+
+  const displayLabel = value
+    ? new Date(value + 'T00:00:00').toLocaleDateString([], { day: '2-digit', month: 'short', year: 'numeric' })
+    : 'Select date';
+
+  const dropdown = (
+    <AnimatePresence>
+      {open && (
+        <motion.div
+          ref={dropdownRef}
+          initial={{ opacity: 0, y: -8, scale: 0.96 }}
+          animate={{ opacity: 1, y: 0, scale: 1 }}
+          exit={{ opacity: 0, y: -8, scale: 0.96 }}
+          transition={{ duration: 0.18, ease: 'easeOut' }}
+          className="fixed z-[9999] w-72 rounded-2xl border border-orange-500/20 overflow-hidden bg-card"
+          style={{ top: pos.top, right: pos.right, boxShadow: '0 0 40px hsl(24 95% 53% / 0.15), 0 20px 60px rgba(0,0,0,0.25)' }}
+        >
+            {/* Header glow strip */}
+            <div className="h-0.5 w-full" style={{ background: 'linear-gradient(90deg, transparent, hsl(24 95% 53%), hsl(43 96% 52%), transparent)' }} />
+
+            {/* Month/Year nav */}
+            <div className="flex items-center justify-between px-4 pt-3 pb-2">
+              <button onClick={prevMonth} className="w-7 h-7 rounded-lg flex items-center justify-center hover:bg-muted/50 text-muted-foreground hover:text-foreground transition-colors">
+                <ChevronLeft className="w-3.5 h-3.5" />
+              </button>
+              <div className="flex items-center gap-1.5">
+                <button onClick={() => setView(v => v === 'months' ? 'days' : 'months')}
+                  className="text-sm font-semibold hover:text-orange-400 transition-colors px-1 rounded">
+                  {MONTHS[cursor.m]}
+                </button>
+                <button onClick={() => setView(v => v === 'years' ? 'days' : 'years')}
+                  className="text-sm font-semibold hover:text-orange-400 transition-colors px-1 rounded">
+                  {cursor.y}
+                </button>
+              </div>
+              <button onClick={nextMonth} className="w-7 h-7 rounded-lg flex items-center justify-center hover:bg-muted/50 text-muted-foreground hover:text-foreground transition-colors">
+                <ChevronRight className="w-3.5 h-3.5" />
+              </button>
+            </div>
+
+            {/* Month picker */}
+            <AnimatePresence mode="wait">
+              {view === 'months' && (
+                <motion.div key="months" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
+                  className="grid grid-cols-3 gap-1.5 px-3 pb-3">
+                  {MONTHS.map((mn, i) => (
+                    <button key={mn} onClick={() => { setCursor(c => ({ ...c, m: i })); setView('days'); }}
+                      className={`text-xs py-1.5 rounded-lg font-medium transition-all ${
+                        i === cursor.m
+                          ? 'text-white' : 'text-muted-foreground hover:text-foreground hover:bg-muted/40'
+                      }`}
+                      style={i === cursor.m ? { background: 'linear-gradient(135deg,hsl(24 95% 53%),hsl(43 96% 52%))' } : {}}>
+                      {mn.slice(0, 3)}
+                    </button>
+                  ))}
+                </motion.div>
+              )}
+
+              {/* Year picker */}
+              {view === 'years' && (
+                <motion.div key="years" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
+                  className="grid grid-cols-3 gap-1.5 px-3 pb-3">
+                  {yearRange.map(yr => (
+                    <button key={yr} onClick={() => { setCursor(c => ({ ...c, y: yr })); setView('days'); }}
+                      className={`text-xs py-1.5 rounded-lg font-medium transition-all ${
+                        yr === cursor.y
+                          ? 'text-white' : 'text-muted-foreground hover:text-foreground hover:bg-muted/40'
+                      }`}
+                      style={yr === cursor.y ? { background: 'linear-gradient(135deg,hsl(24 95% 53%),hsl(43 96% 52%))' } : {}}>
+                      {yr}
+                    </button>
+                  ))}
+                </motion.div>
+              )}
+
+              {/* Day grid */}
+              {view === 'days' && (
+                <motion.div key="days" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="px-3 pb-3">
+                  <div className="grid grid-cols-7 mb-1">
+                    {DAYS.map(d => (
+                      <div key={d} className="text-center text-[10px] font-bold text-muted-foreground py-1">{d}</div>
+                    ))}
+                  </div>
+                  <div className="grid grid-cols-7 gap-y-0.5">
+                    {cells.map((day, idx) => {
+                      if (!day) return <div key={idx} />;
+                      const thisDate  = new Date(cursor.y, cursor.m, day);
+                      const isSelected = toDateStr(thisDate) === value;
+                      const isToday    = toDateStr(thisDate) === toDateStr(today);
+                      const disabled   = thisDate > maxDate;
+                      return (
+                        <motion.button key={idx}
+                          whileHover={!disabled ? { scale: 1.15 } : {}}
+                          whileTap={!disabled ? { scale: 0.9 } : {}}
+                          onClick={() => !disabled && pick(day)}
+                          disabled={disabled}
+                          className={`relative mx-auto w-8 h-8 rounded-lg text-xs font-medium flex items-center justify-center transition-all ${
+                            disabled ? 'opacity-25 cursor-not-allowed' :
+                            isSelected ? 'text-white shadow-lg' :
+                            isToday   ? 'text-orange-400 border border-orange-500/40 bg-orange-500/10' :
+                            'text-foreground hover:bg-muted/50'
+                          }`}
+                          style={isSelected ? { background: 'linear-gradient(135deg,hsl(24 95% 53%),hsl(43 96% 52%))', boxShadow: '0 0 12px hsl(24 95% 53% / 0.5)' } : {}}>
+                          {day}
+                          {isToday && !isSelected && <span className="absolute bottom-0.5 left-1/2 -translate-x-1/2 w-1 h-1 rounded-full bg-orange-400" />}
+                        </motion.button>
+                      );
+                    })}
+                  </div>
+                  {/* Today shortcut */}
+                  <div className="mt-2 pt-2 border-t border-border/30 flex justify-center">
+                    <button onClick={() => { onChange(toDateStr(today)); setOpen(false); }}
+                      className="text-xs font-semibold text-orange-400 hover:text-orange-300 transition-colors flex items-center gap-1">
+                      <Sparkles className="w-3 h-3" /> Today
+                    </button>
+                  </div>
+                </motion.div>
+              )}
+            </AnimatePresence>
+          </motion.div>
+        )}
+      </AnimatePresence>
+  );
+
+  return (
+    <div>
+      <motion.button
+        ref={triggerRef}
+        whileHover={{ scale: 1.02 }} whileTap={{ scale: 0.97 }}
+        onClick={handleOpen}
+        className="flex items-center gap-2 bg-muted/40 border border-border/50 hover:border-orange-500/40 rounded-xl px-3 py-2 transition-all group"
+      >
+        <div className="relative">
+          <CalendarDays className="w-4 h-4 text-orange-400" />
+          <Sparkles className="w-2 h-2 text-amber-400 absolute -top-1 -right-1" />
+        </div>
+        <span className="text-sm font-medium text-foreground">{displayLabel}</span>
+        <ChevronRight className={`w-3 h-3 text-muted-foreground transition-transform duration-200 ${open ? 'rotate-90' : ''}`} />
+      </motion.button>
+      {ReactDOM.createPortal(dropdown, document.body)}
+    </div>
+  );
+}
 
 export default function AdminOrders() {
   const [orders, setOrders] = useState<Order[]>([]);
@@ -180,15 +382,21 @@ export default function AdminOrders() {
             <h3 className="text-sm font-bold">All Orders</h3>
             <p className="text-xs text-muted-foreground mt-0.5">{filtered.length} of {dateFilteredOrders.length} orders</p>
           </div>
-          <div className="flex items-center gap-2 bg-muted/40 border border-border/50 rounded-xl px-3 py-2">
-            <Calendar className="w-4 h-4 text-muted-foreground shrink-0" />
-            <input
-              type="date"
+          <div className="flex items-center gap-2">
+            <AiCalendar
               value={selectedDate}
               max={toDateStr(new Date())}
-              onChange={e => { setSelectedDate(e.target.value); setCurrentPage(1); }}
-              className="bg-transparent text-sm outline-none text-foreground w-full"
+              onChange={v => { setSelectedDate(v); setCurrentPage(1); }}
             />
+            <motion.div
+              whileHover={{ rotate: 180, scale: 1.1 }}
+              whileTap={{ scale: 0.95 }}
+              transition={{ duration: 0.3 }}
+              onClick={fetchOrders}
+              className="w-8 h-8 rounded-lg flex items-center justify-center bg-gradient-to-br from-orange-500/15 to-orange-400/15 hover:from-orange-500/25 hover:to-orange-400/25 transition-all cursor-pointer border border-orange-500/30 hover:border-orange-500/50 shadow-sm hover:shadow-md"
+            >
+              <RefreshCw className="w-4 h-4 text-orange-400" />
+            </motion.div>
           </div>
         </div>
 
@@ -221,14 +429,11 @@ export default function AdminOrders() {
                   </td>
                 </tr>
               ) : (
-                <AnimatePresence>
-                  {paginated.map((order, i) => {
+                <>
+                  {paginated.map((order) => {
                     const empName = getUserName(order.user_id);
                     return (
-                      <motion.tr key={order.id}
-                        initial={{ opacity: 0, y: 6 }} animate={{ opacity: 1, y: 0 }}
-                        exit={{ opacity: 0 }} transition={{ delay: i * 0.04 }}
-                        className="border-b border-border/30 hover:bg-muted/15 transition-colors">
+                      <tr key={order.id} className="border-b border-border/30 hover:bg-muted/15 transition-colors">
                         <td className="px-5 py-4"><span className="text-xs font-bold text-orange-400">#{order.id}</span></td>
                         <td className="px-5 py-4">
                           <div className="flex items-center gap-2.5">
@@ -266,10 +471,10 @@ export default function AdminOrders() {
                             {order.created_at ? new Date(order.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : ''}
                           </p>
                         </td>
-                      </motion.tr>
+                      </tr>
                     );
                   })}
-                </AnimatePresence>
+                </>
               )}
             </tbody>
           </table>
@@ -289,14 +494,11 @@ export default function AdminOrders() {
               <p className="text-sm text-muted-foreground">No orders for this date</p>
             </div>
           ) : (
-            <AnimatePresence>
-              {paginated.map((order, i) => {
+            <>
+              {paginated.map((order) => {
                 const empName = getUserName(order.user_id);
                 return (
-                  <motion.div key={order.id}
-                    initial={{ opacity: 0, y: 6 }} animate={{ opacity: 1, y: 0 }}
-                    exit={{ opacity: 0 }} transition={{ delay: i * 0.04 }}
-                    className="px-4 py-4 hover:bg-muted/10 transition-colors">
+                  <div key={order.id} className="px-4 py-4 hover:bg-muted/10 transition-colors">
                     <div className="flex items-center justify-between mb-2">
                       <span className="text-xs font-bold text-orange-400">#{order.id}</span>
                       <div className="flex items-center gap-2">
@@ -330,41 +532,76 @@ export default function AdminOrders() {
                           new Date(order.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
                         : '—'}
                     </p>
-                  </motion.div>
+                  </div>
                 );
               })}
-            </AnimatePresence>
+            </>
           )}
         </div>
 
-        {totalPages > 1 && (
-          <div className="flex items-center justify-between px-5 py-3.5 border-t border-border/50 bg-muted/10">
-            <p className="text-xs text-muted-foreground">
-              Showing {(currentPage - 1) * ITEMS_PER_PAGE + 1}–{Math.min(currentPage * ITEMS_PER_PAGE, filtered.length)} of {filtered.length}
-            </p>
-            <div className="flex items-center gap-1.5">
-              <button onClick={() => setCurrentPage(p => Math.max(1, p - 1))} disabled={currentPage === 1}
-                className="h-8 w-8 rounded-lg flex items-center justify-center bg-muted/40 text-muted-foreground hover:text-foreground disabled:opacity-40 transition-colors border border-border/50">
+        {filtered.length > 0 && (
+          <div className="flex items-center justify-between px-5 py-4 border-t border-border/50">
+            {/* Left: count info */}
+            <div className="flex items-center gap-2">
+              <div className="h-1.5 w-1.5 rounded-full bg-orange-400" />
+              <p className="text-xs text-muted-foreground">
+                <span className="font-semibold text-foreground">{(currentPage - 1) * ITEMS_PER_PAGE + 1}–{Math.min(currentPage * ITEMS_PER_PAGE, filtered.length)}</span>
+                {' '}of{' '}
+                <span className="font-semibold text-foreground">{filtered.length}</span> orders
+              </p>
+            </div>
+
+            {/* Right: controls */}
+            <div className="flex items-center gap-1">
+              {/* Prev */}
+              <motion.button
+                whileHover={{ scale: 1.08 }} whileTap={{ scale: 0.92 }}
+                onClick={() => setCurrentPage(p => Math.max(1, p - 1))}
+                disabled={currentPage === 1}
+                className="h-8 w-8 rounded-xl flex items-center justify-center border border-border/50 bg-muted/30 text-foreground hover:border-orange-500/40 hover:bg-orange-500/10 disabled:opacity-30 disabled:cursor-not-allowed transition-all"
+              >
                 <ChevronLeft className="w-3.5 h-3.5" />
-              </button>
+              </motion.button>
+
+              {/* Page numbers */}
               {Array.from({ length: totalPages }, (_, i) => i + 1).map(page => {
-                if (page === 1 || page === totalPages || (page >= currentPage - 1 && page <= currentPage + 1)) {
-                  return (
-                    <button key={page} onClick={() => setCurrentPage(page)}
-                      className={`h-8 w-8 rounded-lg text-xs font-semibold transition-all ${currentPage === page ? 'text-white shadow-sm' : 'bg-muted/40 text-muted-foreground hover:text-foreground'}`}
-                      style={currentPage === page ? { background: 'linear-gradient(135deg,hsl(24 95% 53%),hsl(43 96% 52%))' } : {}}>
-                      {page}
-                    </button>
-                  );
-                } else if (page === currentPage - 2 || page === currentPage + 2) {
-                  return <span key={page} className="text-muted-foreground text-xs px-1">…</span>;
-                }
-                return null;
+                const isActive = currentPage === page;
+                const show = page === 1 || page === totalPages || (page >= currentPage - 1 && page <= currentPage + 1);
+                const isDot = page === currentPage - 2 || page === currentPage + 2;
+                if (isDot) return (
+                  <span key={page} className="w-6 text-center text-muted-foreground text-xs select-none">·</span>
+                );
+                if (!show) return null;
+                return (
+                  <motion.button
+                    key={page}
+                    whileHover={!isActive ? { scale: 1.1 } : {}}
+                    whileTap={{ scale: 0.9 }}
+                    onClick={() => setCurrentPage(page)}
+                    className={`relative h-8 w-8 rounded-xl text-xs font-semibold transition-all ${
+                      isActive
+                        ? 'text-white shadow-md'
+                        : 'bg-muted/30 border border-border/50 text-muted-foreground hover:text-foreground hover:border-orange-500/30 hover:bg-orange-500/5'
+                    }`}
+                    style={isActive ? { background: 'linear-gradient(135deg,hsl(24 95% 53%),hsl(43 96% 52%))', boxShadow: '0 0 14px hsl(24 95% 53% / 0.4)' } : {}}
+                  >
+                    {page}
+                    {isActive && (
+                      <span className="absolute -bottom-0.5 left-1/2 -translate-x-1/2 w-1 h-1 rounded-full bg-white/60" />
+                    )}
+                  </motion.button>
+                );
               })}
-              <button onClick={() => setCurrentPage(p => Math.min(totalPages, p + 1))} disabled={currentPage === totalPages}
-                className="h-8 w-8 rounded-lg flex items-center justify-center bg-muted/40 text-muted-foreground hover:text-foreground disabled:opacity-40 transition-colors border border-border/50">
+
+              {/* Next */}
+              <motion.button
+                whileHover={{ scale: 1.08 }} whileTap={{ scale: 0.92 }}
+                onClick={() => setCurrentPage(p => Math.min(totalPages, p + 1))}
+                disabled={currentPage === totalPages}
+                className="h-8 w-8 rounded-xl flex items-center justify-center border border-border/50 bg-muted/30 text-foreground hover:border-orange-500/40 hover:bg-orange-500/10 disabled:opacity-30 disabled:cursor-not-allowed transition-all"
+              >
                 <ChevronRight className="w-3.5 h-3.5" />
-              </button>
+              </motion.button>
             </div>
           </div>
         )}
