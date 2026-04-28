@@ -128,7 +128,7 @@ export function AppSidebar({ collapsed, onToggleCollapse, onMobileClose }: AppSi
     <motion.aside
       animate={{ width: collapsed ? 72 : 256 }}
       transition={{ duration: 0.3, ease: "easeInOut" }}
-      className="h-screen flex flex-col z-40 overflow-hidden"
+      className="h-full flex flex-col z-40 overflow-hidden"
       style={{
         background: "hsl(var(--sidebar-background))",
         borderRight: "1px solid hsl(var(--sidebar-border))",

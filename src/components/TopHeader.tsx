@@ -308,10 +308,7 @@ export function TopHeader({
             className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 backdrop-blur-sm p-4"
             onClick={closeScanner}
           >
-            <motion.div
-              initial={{ scale: 0.9, opacity: 0 }}
-              animate={{ scale: 1, opacity: 1 }}
-              exit={{ scale: 0.9, opacity: 0 }}
+            <div
               onClick={(e) => e.stopPropagation()}
               className="relative w-full max-w-sm rounded-2xl overflow-hidden border border-orange-500/20"
               style={{
@@ -350,6 +347,7 @@ export function TopHeader({
                       <video
                         ref={videoRef}
                         className="w-full rounded-xl"
+                        style={{ minHeight: '280px', background: '#000' }}
                         playsInline
                         muted
                       />
@@ -529,7 +527,7 @@ export function TopHeader({
                   </motion.div>
                 )}
               </div>
-            </motion.div>
+            </div>
           </motion.div>
         )}
       </AnimatePresence>
