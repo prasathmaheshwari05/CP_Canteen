@@ -14,9 +14,10 @@ interface FieldProps {
   onBlur?: () => void;
   error?: string;
   suffix?: React.ReactNode;
+  autoComplete?: string;
 }
 
-function Field({ label, type, placeholder, value, onChange, onBlur, error, suffix }: FieldProps) {
+function Field({ label, type, placeholder, value, onChange, onBlur, error, suffix, autoComplete }: FieldProps) {
   const [focused, setFocused] = useState(false);
 
   return (
@@ -28,6 +29,7 @@ function Field({ label, type, placeholder, value, onChange, onBlur, error, suffi
         <input
           type={type}
           value={value}
+          autoComplete={autoComplete}
           placeholder={focused ? '' : (error ? error : placeholder)}
           onFocus={() => setFocused(true)}
           onBlur={() => { setFocused(false); onBlur?.(); }}
@@ -156,9 +158,10 @@ export default function Signup() {
               </motion.div>
             ) : (
               <form onSubmit={handleSignup} className="space-y-2.5" noValidate>
-                <Field label="Employee ID" type="text" placeholder="e.g. 101" value={form.empId} onChange={v => update('empId', v)} error={errors.empId} />
-                <Field label="Full Name" type="text" placeholder="John Doe" value={form.name} onChange={v => update('name', v)} error={errors.name} />
+                <Field label="Employee ID" type="text" placeholder="e.g. 101" value={form.empId} autoComplete="off" onChange={v => update('empId', v)} error={errors.empId} />
+                <Field label="Full Name" type="text" placeholder="John Doe" value={form.name} autoComplete="name" onChange={v => update('name', v)} error={errors.name} />
                 <Field label="Email" type="email" placeholder="you@company.com" value={form.email}
+                  autoComplete="email"
                   onChange={v => update('email', v)}
                   onBlur={() => {
                     if (form.email && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(form.email))
@@ -170,6 +173,7 @@ export default function Signup() {
                   type={showPassword ? 'text' : 'password'}
                   placeholder="••••••••"
                   value={form.password}
+                  autoComplete="new-password"
                   onChange={v => update('password', v)}
                   error={errors.password}
                   suffix={
@@ -193,6 +197,7 @@ export default function Signup() {
                   type={showConfirmPassword ? 'text' : 'password'}
                   placeholder="••••••••"
                   value={form.confirmPassword}
+                  autoComplete="new-password"
                   onChange={v => update('confirmPassword', v)}
                   onBlur={() => {
                     if (form.confirmPassword && form.password !== form.confirmPassword)
@@ -244,6 +249,10 @@ export default function Signup() {
           </div>
         </div>
       </motion.div>
+
+       <p className="absolute bottom-4 w-full text-center text-xs text-white/75 tracking-wide select-none z-10" style={{ textShadow: '0 1px 4px rgba(0,0,0,0.5)' }}>
+        © 2026 Changepond. All rights reserved.
+      </p>
     </div>
   );
 }

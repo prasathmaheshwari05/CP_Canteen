@@ -14,6 +14,7 @@ interface FieldProps {
   onChange: (v: string) => void;
   error?: string;
   suffix?: React.ReactNode;
+  autoComplete?: string;
 }
 
 function Field({
@@ -24,6 +25,7 @@ function Field({
   onChange,
   error,
   suffix,
+  autoComplete,
 }: FieldProps) {
   const [focused, setFocused] = useState(false);
 
@@ -44,6 +46,7 @@ function Field({
         <input
           type={type}
           value={value}
+          autoComplete={autoComplete}
           placeholder={focused ? "" : error ? error : placeholder}
           onFocus={() => setFocused(true)}
           onBlur={() => setFocused(false)}
@@ -147,7 +150,7 @@ export default function Login() {
   };
 
   return (
-    <div className="min-h-screen flex items-center justify-center relative overflow-hidden p-4">
+    <div className="min-h-screen flex flex-col items-center justify-center relative overflow-hidden p-4">
       <div className="absolute inset-0 cafe-bg-slider" />
       <div className="absolute inset-0 bg-black/40 backdrop-blur-[2px]" />
 
@@ -202,6 +205,7 @@ export default function Login() {
                 type="text"
                 placeholder="Enter Employee ID or Email"
                 value={identifier}
+                autoComplete="username"
                 onChange={(v) => {
                   setIdentifier(v);
                   setErrors((e) => ({ ...e, identifier: "" }));
@@ -213,6 +217,7 @@ export default function Login() {
                 type={showPassword ? "text" : "password"}
                 placeholder="••••••••"
                 value={password}
+                autoComplete="current-password"
                 onChange={(v) => {
                   setPassword(v);
                   setErrors((e) => ({ ...e, password: "" }));
@@ -270,7 +275,12 @@ export default function Login() {
             </div>
           </div>
         </div>
+
       </motion.div>
+
+      <p className="absolute bottom-4 w-full text-center text-xs text-white/75 tracking-wide select-none z-10" style={{ textShadow: '0 1px 4px rgba(0,0,0,0.5)' }}>
+        © 2026 Changepond. All rights reserved.
+      </p>
     </div>
   );
 }
