@@ -7,6 +7,7 @@ from app.db.dependency import get_db
 from app.db.models import User
 from app.auth.jwt_handler import SECRET_KEY, ALGORITHM
 from app.core.roles import ADMIN, USER, SUPERADMIN
+# from app.auth.dependencies import get_current_user
 
 # security = HTTPBearer()
 security = HTTPBearer(auto_error=False)
@@ -143,7 +144,15 @@ user_required = role_required([USER, ADMIN, SUPERADMIN])
 superadmin_required = role_required([SUPERADMIN])
 
 
-def admin_required(current_user: User = Depends(get_current_user)):
-    if current_user.role != "admin":
-        raise HTTPException(status_code=403, detail="Admin access required")
+# def admin_required(current_user: User = Depends(get_current_user)):
+#     if current_user.role != "admin":
+#         raise HTTPException(status_code=403, detail="Admin access required")
+#     return current_user
+
+
+def admin_or_superadmin_required(current_user=Depends(get_current_user)):
+    if current_user.role not in [ADMIN, SUPERADMIN]:
+        raise HTTPException(
+            status_code=403, detail="Admin or Superadmin access required"
+        )
     return current_user

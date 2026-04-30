@@ -7,6 +7,7 @@ from app.db.models import TodayMenu, Menu
 from app.schemas.today_menu_schema import TodayMenuCreate
 from app.auth.dependencies import admin_required, get_current_user
 from app.schemas.today_menu_schema import TodayMenuUpdate
+from app.auth.dependencies import admin_or_superadmin_required, get_current_user
 
 router = APIRouter()
 
@@ -15,7 +16,7 @@ router = APIRouter()
 def add_today_menu(
     request: TodayMenuCreate,
     db: Session = Depends(get_db),
-    user=Depends(admin_required),
+    user = Depends(admin_or_superadmin_required)
 ):
     today = date.today()
 
@@ -35,7 +36,7 @@ def add_today_menu(
 def delete_today_menu(
     id: int,
     db: Session = Depends(get_db),
-    user=Depends(admin_required),
+    user = Depends(admin_or_superadmin_required)
 ):
     item = db.query(TodayMenu).filter(TodayMenu.id == id).first()
 
@@ -101,7 +102,7 @@ def update_today_menu(
     id: int,
     request: TodayMenuUpdate,
     db: Session = Depends(get_db),
-    user=Depends(admin_required),
+    user = Depends(admin_or_superadmin_required)
 ):
     item = db.query(TodayMenu).filter(TodayMenu.id == id).first()
 
