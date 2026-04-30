@@ -17,6 +17,25 @@ def get_all_users(
     return users
 
 
+@router.get("/users/{emp_id}")
+def get_user_by_id(
+    emp_id: int,
+    db: Session = Depends(get_db),
+    # user=Depends(superadmin_required),  # optional later
+):
+    db_user = db.query(User).filter(User.emp_id == emp_id).first()
+
+    if not db_user:
+        raise HTTPException(status_code=404, detail="User not found")
+
+    return {
+        "emp_id": db_user.emp_id,
+        "emp_name": db_user.emp_name,
+        "emp_mail": db_user.emp_mail,
+        "role": db_user.role,
+    }
+
+
 @router.delete("/users/{emp_id}")
 def delete_user(
     emp_id: int,
