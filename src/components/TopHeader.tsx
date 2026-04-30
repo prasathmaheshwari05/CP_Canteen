@@ -4,14 +4,13 @@ import {
   User,
   Settings,
   Menu,
-  ScanLine,
+  QrCode,
   X,
   CheckCircle,
   AlertCircle,
 } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 import { useAppStore, Role } from "@/store/appStore";
-import { Badge } from "@/components/ui/badge";
 import { ThemeToggle } from "@/components/ThemeToggle";
 import { motion, AnimatePresence } from "framer-motion";
 import jsQR from "jsqr";
@@ -68,14 +67,15 @@ export function TopHeader({
   const rafRef = useRef<number | null>(null);
   const activeRef = useRef(false);
 
-  const empName =
-    (currentUser as any)?.emp_name ?? roleLabels[currentRole] ?? "User";
+  const empName = (currentUser as any)?.emp_name?.trim() || (currentUser as any)?.emp_mail?.split('@')[0] || "";
+  const displayName = empName || roleLabels[currentRole];
   const displayEmail = (currentUser as any)?.emp_mail ?? "";
-  const nameParts = empName.trim().split(/\s+/);
-  const initials =
-    nameParts.length >= 2
-      ? (nameParts[0][0] + nameParts[nameParts.length - 1][0]).toUpperCase()
-      : nameParts[0][0].toUpperCase();
+  const nameParts = empName ? empName.split(/\s+/) : [];
+  const initials = nameParts.length >= 2
+    ? (nameParts[0][0] + nameParts[nameParts.length - 1][0]).toUpperCase()
+    : nameParts.length === 1
+    ? nameParts[0].slice(0, 2).toUpperCase()
+    : "U";
 
   const stopCamera = () => {
     activeRef.current = false;
@@ -251,13 +251,21 @@ export function TopHeader({
           {/* Scan QR button — admin only */}
           {currentRole === "admin" && (
             <motion.button
-              whileHover={{ scale: 1.04 }}
-              whileTap={{ scale: 0.96 }}
+              whileHover={{ scale: 1.03 }}
+              whileTap={{ scale: 0.95 }}
               onClick={openScanner}
-              className="flex items-center gap-2 px-3 sm:px-4 py-2 rounded-xl border border-orange-500/40 bg-orange-500/10 text-orange-400 hover:bg-orange-500/20 transition-colors font-semibold text-sm"
+              className="relative flex items-center gap-2 px-3 sm:px-4 py-2 rounded-xl font-semibold text-sm text-orange-400 overflow-hidden group border border-orange-500/30 bg-orange-500/15 hover:bg-orange-500/20 hover:border-orange-500/40 transition-colors"
+              style={{ boxShadow: "0 0 12px -4px rgba(249,115,22,0.2), inset 0 1px 0 rgba(255,255,255,0.05)" }}
             >
-              <ScanLine className="w-4 h-4 shrink-0" />
-              <span className="hidden sm:inline">Scan QR</span>
+              {/* shimmer sweep on hover */}
+              <span className="absolute inset-0 translate-x-[-100%] group-hover:translate-x-[100%] transition-transform duration-700 bg-gradient-to-r from-transparent via-orange-400/10 to-transparent pointer-events-none" />
+              {/* icon with pulse dot */}
+              <span className="relative flex items-center justify-center shrink-0">
+                <span className="absolute -top-0.5 -right-0.5 w-1.5 h-1.5 rounded-full bg-orange-400 animate-ping" />
+                <span className="absolute -top-0.5 -right-0.5 w-1.5 h-1.5 rounded-full bg-orange-400" />
+                <QrCode className="relative w-4 h-4" />
+              </span>
+              <span className="hidden sm:inline tracking-wide">Scan QR</span>
             </motion.button>
           )}
         </div>
@@ -265,29 +273,20 @@ export function TopHeader({
         <div className="flex items-center gap-2 sm:gap-3">
           <ThemeToggle />
 
-          <Badge
-            variant="outline"
-            className={`text-[10px] font-semibold hidden sm:inline-flex ${roleBadgeStyle[currentRole]}`}
-          >
-            {roleLabels[currentRole]}
-          </Badge>
-
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
-              <button
-                className="w-9 h-9 rounded-xl flex items-center justify-center text-sm font-bold text-white hover:opacity-90 hover:ring-2 hover:ring-orange-500/40 transition-all cursor-pointer"
-                style={{
-                  background:
-                    "linear-gradient(135deg, hsl(24 95% 53%), hsl(43 96% 52%))",
-                }}
+              <button className="w-9 h-9 rounded-xl flex items-center justify-center text-sm font-bold text-white hover:opacity-90 hover:ring-2 hover:ring-orange-500/40 transition-all cursor-pointer"
+                style={{ background: "linear-gradient(135deg, hsl(24 95% 53%), hsl(43 96% 52%))" }}
               >
                 {initials}
               </button>
             </DropdownMenuTrigger>
             <DropdownMenuContent align="end" className="w-48">
               <div className="px-2 py-1.5">
-                <p className="text-sm font-semibold">{empName}</p>
-                <p className="text-xs text-muted-foreground">{displayEmail}</p>
+                <p className="text-sm font-semibold">{displayName}</p>
+                <span className={`px-2 py-0.5 rounded-full text-[10px] font-semibold border whitespace-nowrap ${roleBadgeStyle[currentRole]}`}>
+                  {roleLabels[currentRole]}
+                </span>
               </div>
               <DropdownMenuSeparator />
               <DropdownMenuItem className="cursor-pointer">
@@ -330,7 +329,7 @@ export function TopHeader({
               <div className="flex items-center justify-between px-5 py-4 border-b border-white/10">
                 <div className="flex items-center gap-2">
                   <div className="w-7 h-7 rounded-lg bg-orange-500/15 flex items-center justify-center">
-                    <ScanLine className="w-4 h-4 text-orange-400" />
+                    <QrCode className="w-4 h-4 text-orange-400" />
                   </div>
                   <div>
                     <p className="text-sm font-bold text-white">

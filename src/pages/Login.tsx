@@ -140,7 +140,22 @@ export default function Login() {
       const { access_token, role, emp_name, emp_mail, emp_id: loginEmpId, id: userId } = res.data;
       sessionStorage.setItem("access_token", access_token);
       setRole(role);
-      setCurrentUser({ emp_name, emp_mail, emp_id: loginEmpId, id: userId } as any);
+
+      // If API doesn't return emp_name, fetch it from users list
+      let resolvedName = emp_name;
+      let resolvedMail = emp_mail;
+      if (!resolvedName || !resolvedMail) {
+        try {
+          const usersRes = await ApiService.get("/auth/users");
+          const matched = (usersRes.data ?? []).find((u: any) => u.emp_id === (loginEmpId ?? empId));
+          if (matched) {
+            resolvedName = resolvedName || matched.emp_name;
+            resolvedMail = resolvedMail || matched.emp_mail;
+          }
+        } catch {}
+      }
+
+      setCurrentUser({ emp_name: resolvedName, emp_mail: resolvedMail, emp_id: loginEmpId, id: userId } as any);
       navigate("/");
     } catch {
       setErrors({ password: "Invalid credentials" });
@@ -150,7 +165,7 @@ export default function Login() {
   };
 
   return (
-    <div className="min-h-screen flex flex-col items-center justify-center relative overflow-hidden p-4">
+    <div className="min-h-screen flex flex-col items-center justify-center relative overflow-hidden p-4 pb-10">
       <div className="absolute inset-0 cafe-bg-slider" />
       <div className="absolute inset-0 bg-black/40 backdrop-blur-[2px]" />
 
@@ -278,7 +293,7 @@ export default function Login() {
 
       </motion.div>
 
-      <p className="absolute bottom-4 w-full text-center text-xs text-white/75 tracking-wide select-none z-10" style={{ textShadow: '0 1px 4px rgba(0,0,0,0.5)' }}>
+      <p className="relative z-10 mt-4 text-center text-xs text-white/75 tracking-wide select-none px-4" style={{ textShadow: '0 1px 4px rgba(0,0,0,0.5)' }}>
         © 2026 Changepond. All rights reserved.
       </p>
     </div>

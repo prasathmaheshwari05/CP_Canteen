@@ -13,10 +13,22 @@ import {
   ChevronRight,
   Users,
   ChevronDown,
+  RefreshCw,
+  Mail,
 } from "lucide-react";
 import { useAppStore, User } from "@/store/appStore";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
+import {
+  AlertDialog,
+  AlertDialogContent,
+  AlertDialogHeader,
+  AlertDialogFooter,
+  AlertDialogTitle,
+  AlertDialogDescription,
+  AlertDialogAction,
+  AlertDialogCancel,
+} from "@/components/ui/alert-dialog";
 import { toast } from "sonner";
 import ApiService from "@/api/apiServices";
 
@@ -27,9 +39,16 @@ const emptyForm = {
   emp_name: "",
   emp_mail: "",
   password: "",
-  role: "user" as "admin" | "user",
+  role: "user" as "superadmin" | "admin" | "user",
 };
 const emptyErrors = { emp_id: "", emp_name: "", emp_mail: "", password: "" };
+
+const passwordChecks = (pwd: string) => [
+  { label: "8+ characters", ok: pwd.length >= 8 },
+  { label: "Uppercase letter", ok: /[A-Z]/.test(pwd) },
+  { label: "Number", ok: /[0-9]/.test(pwd) },
+  { label: "Special character", ok: /[!@#$%^&*]/.test(pwd) },
+];
 
 export default function UserManagement() {
   const { users, addUser, updateUser, deleteUser } = useAppStore();
@@ -43,6 +62,10 @@ export default function UserManagement() {
   const [roleDropOpen, setRoleDropOpen] = useState(false);
   const [apiUsers, setApiUsers] = useState<any[]>([]);
   const [apiLoading, setApiLoading] = useState(false);
+  const [pageSize, setPageSize] = useState(ITEMS_PER_PAGE);
+  const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
+  const [deleteTarget, setDeleteTarget] = useState<User | null>(null);
+  const [deletingUser, setDeletingUser] = useState(false);
 
   const fetchUsers = async () => {
     setApiLoading(true);
@@ -62,16 +85,30 @@ export default function UserManagement() {
     const matchSearch =
       (u.emp_name ?? '').toLowerCase().includes(search.toLowerCase()) ||
       (u.emp_mail ?? '').toLowerCase().includes(search.toLowerCase());
+    const roleMap: Record<string, string> = {
+      "Super Admin": "superadmin",
+      "Admin": "admin",
+      "User": "user",
+    };
     const matchRole =
-      filterRole === "All" || u.role === filterRole.toLowerCase();
+      filterRole === "All" || u.role === (roleMap[filterRole] || filterRole.toLowerCase());
     return matchSearch && matchRole;
   });
 
-  const totalPages = Math.ceil(filtered.length / ITEMS_PER_PAGE);
+  const totalPages = Math.max(1, Math.ceil(filtered.length / pageSize));
   const paginated = filtered.slice(
-    (currentPage - 1) * ITEMS_PER_PAGE,
-    currentPage * ITEMS_PER_PAGE
+    (currentPage - 1) * pageSize,
+    currentPage * pageSize
   );
+
+  const pageStart = filtered.length === 0 ? 0 : (currentPage - 1) * pageSize + 1;
+  const pageEnd = Math.min(currentPage * pageSize, filtered.length);
+
+  useEffect(() => {
+    if (currentPage > totalPages) {
+      setCurrentPage(totalPages);
+    }
+  }, [totalPages]);
 
   const setField = (key: keyof typeof form, val: string) => {
     setForm((f) => ({ ...f, [key]: val }));
@@ -83,12 +120,15 @@ export default function UserManagement() {
     let ok = true;
 
     if (!editing) {
-      if (form.emp_id && isNaN(Number(form.emp_id))) {
+      if (!form.emp_id.trim()) {
+        e.emp_id = "Employee ID is required";
+        ok = false;
+      } else if (isNaN(Number(form.emp_id))) {
         e.emp_id = "Employee ID must be a number";
         ok = false;
       } else if (
-        form.emp_id &&
-        users.some((u) => u.emp_id === Number(form.emp_id))
+        users.some((u) => u.emp_id === Number(form.emp_id)) ||
+        apiUsers.some((u) => u.emp_id === Number(form.emp_id))
       ) {
         e.emp_id = "Employee ID already exists";
         ok = false;
@@ -111,15 +151,32 @@ export default function UserManagement() {
       ok = false;
     } else if (
       !editing &&
-      users.some((u) => u.emp_mail === form.emp_mail.trim())
+      (users.some((u) => u.emp_mail === form.emp_mail.trim()) ||
+        apiUsers.some((u) => u.emp_mail === form.emp_mail.trim()))
     ) {
       e.emp_mail = "Email already registered";
       ok = false;
     }
 
-    if (!editing && form.password && form.password.length < 6) {
-      e.password = "Password must be at least 6 characters";
-      ok = false;
+    if (!editing) {
+      if (!form.password.trim()) {
+        e.password = "Password is required";
+        ok = false;
+      } else {
+        const checks = passwordChecks(form.password);
+        if (!checks.every((c) => c.ok)) {
+          e.password = "Password requirements not met";
+          ok = false;
+        }
+      }
+    } else {
+      if (form.password.trim()) {
+        const checks = passwordChecks(form.password);
+        if (!checks.every((c) => c.ok)) {
+          e.password = "Password requirements not met";
+          ok = false;
+        }
+      }
     }
 
     setErrors(e);
@@ -130,16 +187,38 @@ export default function UserManagement() {
     e.preventDefault();
     if (!validate()) return;
     if (editing) {
-      updateUser(editing.id, { emp_name: form.emp_name.trim(), emp_mail: form.emp_mail.trim(), role: form.role });
-      setEditing(null);
-      toast.success('User updated!');
+      try {
+        const payload: any = {
+          emp_name: form.emp_name.trim(),
+          emp_mail: form.emp_mail.trim(),
+          role: form.role,
+        };
+        if (form.password.trim()) {
+          payload.password = form.password;
+        }
+        await ApiService.put(`/auth/users/${editing.emp_id}`, payload);
+        updateUser(editing.id, { emp_name: form.emp_name.trim(), emp_mail: form.emp_mail.trim(), role: form.role });
+        setApiUsers((prev) =>
+          prev.map((u) =>
+            u.emp_id === editing.emp_id
+              ? { ...u, emp_name: form.emp_name.trim(), emp_mail: form.emp_mail.trim(), role: form.role }
+              : u
+          )
+        );
+        toast.success('User updated successfully!');
+        setEditing(null);
+        setForm(emptyForm);
+        setErrors(emptyErrors);
+      } catch (err: any) {
+        toast.error(ApiService.handleAxiosError(err, 'Failed to update user'));
+      }
     } else {
       try {
         const payload = {
-          emp_id: Number(form.emp_id) || users.length + 1,
+          emp_id: Number(form.emp_id),
           emp_name: form.emp_name.trim(),
           emp_mail: form.emp_mail.trim(),
-          password: form.password || 'Default@123',
+          password: form.password,
           role: form.role,
         };
         const res = await ApiService.post('/auth/register', payload);
@@ -187,8 +266,19 @@ export default function UserManagement() {
     { label: "User — Rahul",  email: "rahul@gmail.com", role: "user"  as const },
   ];
 
+  const passwordValidationFailures = !editing && form.password
+    ? passwordChecks(form.password).filter((check) => !check.ok)
+    : [];
+  const firstPasswordValidationMessage =
+    passwordValidationFailures.length > 0
+      ? passwordValidationFailures[0].label
+      : "";
+  const passwordValidationComplete =
+    !editing && form.password && passwordValidationFailures.length === 0;
+
   return (
-    <div className="space-y-7">
+    <>
+      <div className="space-y-7">
       {/* ── Form Card ── */}
       <div className="w-full">
         <motion.div
@@ -204,7 +294,7 @@ export default function UserManagement() {
         >
           {/* Gradient header banner */}
           <div
-            className="px-7 py-5 flex items-center justify-between rounded-t-2xl"
+            className="px-4 py-3 flex items-center justify-between rounded-t-2xl"
             style={{
               background: editing
                 ? "linear-gradient(135deg,hsl(262 83% 58% / 0.18),hsl(291 64% 42% / 0.10))"
@@ -213,7 +303,7 @@ export default function UserManagement() {
           >
             <div className="flex items-center gap-3">
               <div
-                className="w-10 h-10 rounded-2xl flex items-center justify-center shadow"
+                className="w-8 h-8 rounded-2xl flex items-center justify-center shadow"
                 style={{
                   background: editing
                     ? "linear-gradient(135deg,hsl(262 83% 58%),hsl(291 64% 42%))"
@@ -221,13 +311,13 @@ export default function UserManagement() {
                 }}
               >
                 {editing ? (
-                  <Pencil className="w-5 h-5 text-white" />
+                  <Pencil className="w-4 h-4 text-white" />
                 ) : (
-                  <UserIcon className="w-5 h-5 text-white" />
+                  <UserIcon className="w-4 h-4 text-white" />
                 )}
               </div>
               <div>
-                <h3 className="font-bold text-base">
+                <h3 className="font-bold text-sm">
                   {editing ? "Edit User" : "Create New User"}
                 </h3>
                 <p className="text-xs text-muted-foreground">
@@ -247,13 +337,14 @@ export default function UserManagement() {
             )}
           </div>
 
-          <div className="bg-card p-6 rounded-b-2xl">
+          <div className="bg-card p-4 rounded-b-2xl">
             <form onSubmit={handleSubmit} noValidate>
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-x-6 gap-y-5">
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-x-4 gap-y-3">
                 {/* Employee ID */}
-                <div className="space-y-1.5">
-                  <label className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground">
-                    Employee ID
+                <div className="space-y-1">
+                  <label className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground flex items-center gap-1">
+                    <UserIcon className="w-3 h-3" />
+                    Employee ID {!editing && <span className="text-red-400">*</span>}
                   </label>
                   <Input
                     placeholder="e.g. 101"
@@ -261,7 +352,7 @@ export default function UserManagement() {
                     value={form.emp_id}
                     onChange={(e) => setField("emp_id", e.target.value)}
                     disabled={!!editing}
-                    className={`h-11 bg-muted/20 text-sm transition-colors ${
+                    className={`h-9 bg-muted/20 text-sm transition-colors ${
                       errors.emp_id
                         ? "border-red-500/60"
                         : "border-border/60 focus:border-orange-500/50"
@@ -275,22 +366,23 @@ export default function UserManagement() {
                   ) : (
                     !editing && (
                       <p className="text-[10px] text-muted-foreground">
-                        Auto-generated if left empty
+                        Must be unique
                       </p>
                     )
                   )}
                 </div>
 
                 {/* Full Name */}
-                <div className="space-y-1.5">
-                  <label className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground">
+                <div className="space-y-1">
+                  <label className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground flex items-center gap-1">
+                    <UserIcon className="w-3 h-3" />
                     Full Name *
                   </label>
                   <Input
                     placeholder="e.g. John Doe"
                     value={form.emp_name}
                     onChange={(e) => setField("emp_name", e.target.value)}
-                    className={`h-11 bg-muted/20 text-sm transition-colors ${
+                    className={`h-9 bg-muted/20 text-sm transition-colors ${
                       errors.emp_name
                         ? "border-red-500/60"
                         : "border-border/60 focus:border-orange-500/50"
@@ -305,8 +397,9 @@ export default function UserManagement() {
                 </div>
 
                 {/* Email */}
-                <div className="space-y-1.5">
-                  <label className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground">
+                <div className="space-y-1">
+                  <label className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground flex items-center gap-1">
+                    <Mail className="w-3 h-3" />
                     Email Address *
                   </label>
                   <Input
@@ -314,7 +407,7 @@ export default function UserManagement() {
                     placeholder="e.g. john@cafe.com"
                     value={form.emp_mail}
                     onChange={(e) => setField("emp_mail", e.target.value)}
-                    className={`h-11 bg-muted/20 text-sm transition-colors ${
+                    className={`h-9 bg-muted/20 text-sm transition-colors ${
                       errors.emp_mail
                         ? "border-red-500/60"
                         : "border-border/60 focus:border-orange-500/50"
@@ -329,9 +422,11 @@ export default function UserManagement() {
                 </div>
 
                 {/* Password */}
-                <div className="space-y-1.5">
-                  <label className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground">
+                <div className="space-y-1">
+                  <label className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground flex items-center gap-1">
+                    <KeyRound className="w-3 h-3" />
                     Password{" "}
+                    {!editing && <span className="text-red-400">*</span>}
                     {editing && (
                       <span className="normal-case font-normal text-muted-foreground/60">
                         (optional)
@@ -341,11 +436,11 @@ export default function UserManagement() {
                   <Input
                     type="password"
                     placeholder={
-                      editing ? "Leave blank to keep current" : "Enter password"
+                      editing ? "Leave blank to keep current" : "Enter strong password"
                     }
                     value={form.password}
                     onChange={(e) => setField("password", e.target.value)}
-                    className={`h-11 bg-muted/20 text-sm transition-colors ${
+                    className={`h-9 bg-muted/20 text-sm transition-colors ${
                       errors.password
                         ? "border-red-500/60"
                         : "border-border/60 focus:border-orange-500/50"
@@ -357,17 +452,33 @@ export default function UserManagement() {
                       {errors.password}
                     </p>
                   ) : (
-                    !editing && (
-                      <p className="text-[10px] text-muted-foreground">
-                        Default: Default@123 if left empty
+                    !editing && form.password && (
+                      <p
+                        className={`text-[10px] flex items-center gap-1 ${
+                          passwordValidationComplete
+                            ? "text-emerald-400"
+                            : "text-muted-foreground"
+                        }`}
+                      >
+                        <span
+                          className={`w-1.5 h-1.5 rounded-full ${
+                            passwordValidationComplete
+                              ? "bg-emerald-400"
+                              : "bg-border/40"
+                          }`}
+                        />
+                        {passwordValidationComplete
+                          ? "Password criteria met"
+                          : firstPasswordValidationMessage}
                       </p>
                     )
                   )}
                 </div>
 
                 {/* Role — dropdown */}
-                <div className="space-y-1.5">
-                  <label className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground">
+                <div className="space-y-1">
+                  <label className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground flex items-center gap-1">
+                    <Shield className="w-3 h-3" />
                     Role *
                   </label>
                   <div className="relative z-10">
@@ -377,9 +488,11 @@ export default function UserManagement() {
                         setRoleDropOpen((v) => !v);
                         setQuickFillOpen(false);
                       }}
-                      className={`w-full h-11 flex items-center justify-between px-4 rounded-xl border text-sm font-medium transition-all ${
+                      className={`w-full h-9 flex items-center justify-between px-3 rounded-xl border text-sm font-medium transition-all ${
                         form.role === "admin"
                           ? "bg-orange-500/10 border-orange-500/40 text-orange-500"
+                          : form.role === "superadmin"
+                          ? "bg-purple-500/10 border-purple-500/40 text-purple-500"
                           : "bg-emerald-500/10 border-emerald-500/40 text-emerald-600"
                       }`}
                     >
@@ -388,6 +501,11 @@ export default function UserManagement() {
                           <>
                             <Shield className="w-4 h-4" />
                             <span>Admin</span>
+                          </>
+                        ) : form.role === "superadmin" ? (
+                          <>
+                            <KeyRound className="w-4 h-4" />
+                            <span>Super Admin</span>
                           </>
                         ) : (
                           <>
@@ -430,6 +548,15 @@ export default function UserManagement() {
                               dot: "bg-orange-400",
                               text: "text-orange-500",
                             },
+                            {
+                              value: "superadmin",
+                              label: "Super Admin",
+                              icon: KeyRound,
+                              desc: "Full system access & control",
+                              active: "bg-purple-500/10",
+                              dot: "bg-purple-400",
+                              text: "text-purple-500",
+                            },
                           ].map((r) => (
                             <button
                               key={r.value}
@@ -437,7 +564,7 @@ export default function UserManagement() {
                               onClick={() => {
                                 setForm((f) => ({
                                   ...f,
-                                  role: r.value as "user" | "admin",
+                                  role: r.value as "user" | "admin" | "superadmin",
                                 }));
                                 setRoleDropOpen(false);
                               }}
@@ -451,6 +578,8 @@ export default function UserManagement() {
                                 className={`w-8 h-8 rounded-lg flex items-center justify-center shrink-0 ${
                                   r.value === "admin"
                                     ? "bg-orange-500/15"
+                                    : r.value === "superadmin"
+                                    ? "bg-purple-500/15"
                                     : "bg-emerald-500/15"
                                 }`}
                               >
@@ -458,6 +587,8 @@ export default function UserManagement() {
                                   className={`w-4 h-4 ${
                                     r.value === "admin"
                                       ? "text-orange-400"
+                                      : r.value === "superadmin"
+                                      ? "text-purple-400"
                                       : "text-emerald-500"
                                   }`}
                                 />
@@ -475,6 +606,8 @@ export default function UserManagement() {
                                   form.role === r.value
                                     ? r.value === "admin"
                                       ? "border-orange-400"
+                                      : r.value === "superadmin"
+                                      ? "border-purple-400"
                                       : "border-emerald-400"
                                     : "border-border"
                                 }`}
@@ -495,11 +628,11 @@ export default function UserManagement() {
               </div>
 
               {/* Submit */}
-              <div className="flex justify-end mt-6 pt-5 border-t border-border/40 pb-1">
+              <div className="flex justify-end mt-4 pt-3 border-t border-border/40 pb-1">
                 <Button
                   type="submit"
-                  size="lg"
-                  className="text-white font-semibold px-8 shadow-lg"
+                  size="sm"
+                  className="text-white font-semibold px-6 shadow-lg"
                   style={{
                     background: editing
                       ? "linear-gradient(135deg,hsl(262 83% 58%),hsl(291 64% 42%))"
@@ -521,6 +654,7 @@ export default function UserManagement() {
               </div>
             </form>
           </div>
+
         </motion.div>
       </div>
 
@@ -543,31 +677,43 @@ export default function UserManagement() {
             </button>
           )}
         </div>
-        <div className="flex gap-1.5">
-          {["All", "Admin", "User"].map((r) => (
-            <button
-              key={r}
-              onClick={() => {
-                setFilterRole(r);
-                setCurrentPage(1);
-              }}
-              className={`px-3 py-1.5 rounded-xl text-xs font-semibold transition-all border ${
-                filterRole === r
-                  ? "text-white border-transparent shadow-md"
-                  : "bg-muted/40 text-muted-foreground hover:text-foreground border-border/50"
-              }`}
-              style={
-                filterRole === r
-                  ? {
-                      background:
-                        "linear-gradient(135deg,hsl(24 95% 53%),hsl(43 96% 52%))",
-                    }
-                  : {}
-              }
-            >
-              {r}
-            </button>
-          ))}
+        <div className="flex items-center gap-2">
+          <div className="flex gap-1.5">
+            {["All", "Super Admin", "Admin", "User"].map((r) => (
+              <button
+                key={r}
+                onClick={() => {
+                  setFilterRole(r);
+                  setCurrentPage(1);
+                }}
+                className={`px-3 py-1.5 rounded-xl text-xs font-semibold transition-all border ${
+                  filterRole === r
+                    ? "text-white border-transparent shadow-md"
+                    : "bg-muted/40 text-muted-foreground hover:text-foreground border-border/50"
+                }`}
+                style={
+                  filterRole === r
+                    ? {
+                        background:
+                          "linear-gradient(135deg,hsl(24 95% 53%),hsl(43 96% 52%))",
+                      }
+                    : {}
+                }
+              >
+                {r}
+              </button>
+            ))}
+          </div>
+          <motion.div
+            whileHover={{ rotate: 180, scale: 1.05 }}
+            whileTap={{ scale: 0.95 }}
+            transition={{ duration: 0.3 }}
+            onClick={fetchUsers}
+            title="Refresh users"
+            className="h-11 w-11 rounded-xl flex items-center justify-center bg-gradient-to-br from-orange-500/15 to-orange-400/15 hover:from-orange-500/25 hover:to-orange-400/25 transition-all cursor-pointer border border-orange-500/30 hover:border-orange-500/50 shadow-sm hover:shadow-md"
+          >
+            <RefreshCw className="w-4 h-4 text-orange-400" />
+          </motion.div>
         </div>
       </div>
 
@@ -632,10 +778,26 @@ export default function UserManagement() {
                       <span className={`inline-flex items-center gap-1 text-[10px] font-bold px-2.5 py-1 rounded-full border ${
                         u.role === "admin"
                           ? "bg-orange-500/10 text-orange-400 border-orange-500/25"
+                          : u.role === "superadmin"
+                          ? "bg-purple-500/10 text-purple-400 border-purple-500/25"
                           : "bg-emerald-500/10 text-emerald-400 border-emerald-500/25"
                       }`}>
-                        {u.role === "admin" ? <Shield className="w-3 h-3" /> : <UserIcon className="w-3 h-3" />}
-                        {u.role === "admin" ? "Admin" : "User"}
+                        {u.role === "admin" ? (
+                          <>
+                            <Shield className="w-3 h-3" />
+                            Admin
+                          </>
+                        ) : u.role === "superadmin" ? (
+                          <>
+                            <KeyRound className="w-3 h-3" />
+                            Super Admin
+                          </>
+                        ) : (
+                          <>
+                            <UserIcon className="w-3 h-3" />
+                            User
+                          </>
+                        )}
                       </span>
                     </td>
                     <td className="px-5 py-3.5">
@@ -646,14 +808,12 @@ export default function UserManagement() {
                         >
                           <Pencil className="w-3.5 h-3.5" />
                         </button>
+
                         <button
-                          onClick={() => toast.success(`Password reset for ${u.emp_name}`)}
-                          className="p-1.5 rounded-lg bg-amber-500/10 text-amber-400 hover:bg-amber-500/20 border border-amber-500/20 transition-colors"
-                        >
-                          <KeyRound className="w-3.5 h-3.5" />
-                        </button>
-                        <button
-                          onClick={() => { deleteUser(u.id); toast.success("User deleted"); }}
+                          onClick={() => {
+                            setDeleteTarget(u);
+                            setDeleteDialogOpen(true);
+                          }}
                           className="p-1.5 rounded-lg bg-red-500/10 text-red-400 hover:bg-red-500/20 border border-red-500/20 transition-colors"
                         >
                           <Trash2 className="w-3.5 h-3.5" />
@@ -680,13 +840,32 @@ export default function UserManagement() {
         </table>
 
         {/* Pagination */}
-        {totalPages > 1 && (
-          <div className="flex items-center justify-between px-5 py-3.5 border-t border-border/50 bg-muted/10">
-            <p className="text-xs text-muted-foreground">
-              Showing {(currentPage - 1) * ITEMS_PER_PAGE + 1}–
-              {Math.min(currentPage * ITEMS_PER_PAGE, filtered.length)} of{" "}
-              {filtered.length}
-            </p>
+          <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between px-5 py-3.5 border-t border-border/50 bg-muted/10 gap-3">
+            <div className="flex flex-col sm:flex-row items-center gap-3 text-xs text-muted-foreground">
+              <span>
+                Showing {pageStart}–{pageEnd} of {filtered.length}
+              </span>
+              <span>Page {currentPage} of {totalPages}</span>
+              <label className="flex items-center gap-2">
+                <span className="text-[11px] uppercase tracking-[0.18em] text-muted-foreground">
+                  Rows per page
+                </span>
+                <select
+                  value={pageSize}
+                  onChange={(e) => {
+                    setPageSize(Number(e.target.value));
+                    setCurrentPage(1);
+                  }}
+                  className="h-8 rounded-lg border border-border/50 bg-card px-2 text-xs text-foreground outline-none"
+                >
+                  {[5, 10, 20, 50].map((size) => (
+                    <option key={size} value={size}>
+                      {size}
+                    </option>
+                  ))}
+                </select>
+              </label>
+            </div>
             <div className="flex items-center gap-1.5">
               <button
                 onClick={() => setCurrentPage((p) => Math.max(1, p - 1))}
@@ -750,8 +929,52 @@ export default function UserManagement() {
               </button>
             </div>
           </div>
-        )}
       </div>
     </div>
+
+    <AlertDialog open={deleteDialogOpen} onOpenChange={(open) => {
+      setDeleteDialogOpen(open);
+      if (!open) setDeleteTarget(null);
+    }}>
+      <AlertDialogContent>
+        <AlertDialogHeader>
+          <AlertDialogTitle>Delete user?</AlertDialogTitle>
+          <AlertDialogDescription>
+            Are you sure you want to delete this user? This action is permanent and will revoke access immediately.
+          </AlertDialogDescription>
+        </AlertDialogHeader>
+        <AlertDialogFooter>
+          <AlertDialogCancel
+            onClick={() => setDeleteTarget(null)}
+            className="min-w-[120px]"
+          >
+            Cancel
+          </AlertDialogCancel>
+          <AlertDialogAction
+            onClick={async () => {
+              if (!deleteTarget) return;
+              setDeletingUser(true);
+              try {
+                await ApiService.delete(`/auth/users/${deleteTarget.emp_id}`);
+                deleteUser(deleteTarget.id);
+                setApiUsers((prev) => prev.filter((user) => user.emp_id !== deleteTarget.emp_id));
+                toast.success("User deleted successfully");
+                setDeleteDialogOpen(false);
+                setDeleteTarget(null);
+              } catch (err: any) {
+                toast.error(ApiService.handleAxiosError(err, "Failed to delete user"));
+              } finally {
+                setDeletingUser(false);
+              }
+            }}
+            className="min-w-[120px]"
+            disabled={deletingUser}
+          >
+            Delete user
+          </AlertDialogAction>
+        </AlertDialogFooter>
+      </AlertDialogContent>
+    </AlertDialog>
+    </>
   );
 }

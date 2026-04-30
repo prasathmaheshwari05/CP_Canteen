@@ -1,9 +1,8 @@
 import { useState, useEffect } from 'react';
 import { motion } from 'framer-motion';
-import { Save } from 'lucide-react';
+import { Send } from 'lucide-react';
 import { useAppStore } from '@/store/appStore';
 import { Badge } from '@/components/ui/badge';
-import { Button } from '@/components/ui/button';
 import { toast } from 'sonner';
 import ApiService from '@/api/apiServices';
 
@@ -23,10 +22,22 @@ export default function AdminMenuManagement() {
   const [loading, setLoading]         = useState(true);
   const [selected, setSelected]       = useState<Set<number>>(new Set());
   const [publishing, setPublishing]   = useState(false);
+  const [publishedSelection, setPublishedSelection] = useState<Set<number> | null>(null);
 
   useEffect(() => {
-    ApiService.get('/api/menu')
-      .then(res => setApiProducts(res.data ?? []))
+    Promise.all([
+      ApiService.get('/api/menu'),
+      ApiService.get('/api/today-menu'),
+    ])
+      .then(([menuRes, todayRes]) => {
+        setApiProducts(menuRes.data ?? []);
+        const todayIds: number[] = (todayRes.data ?? []).map((item: any) => Number(item.id ?? item.menu_id ?? item));
+        if (todayIds.length > 0) {
+          const idSet = new Set(todayIds);
+          setSelected(idSet);
+          setPublishedSelection(idSet);
+        }
+      })
       .catch(() => toast.error('Failed to load menu items'))
       .finally(() => setLoading(false));
   }, []);
@@ -44,6 +55,7 @@ export default function AdminMenuManagement() {
     setPublishing(true);
     try {
       await ApiService.post('/api/today-menu', { menu_ids: [...selected].map(Number) });
+      setPublishedSelection(new Set(selected));
       toast.success(`${selected.size} item${selected.size > 1 ? 's' : ''} published to today's menu!`);
     } catch (err) {
       toast.error(ApiService.handleAxiosError(err, 'Failed to publish menu'));
@@ -72,18 +84,43 @@ export default function AdminMenuManagement() {
         <p className="text-xs text-muted-foreground">
           <span className="font-bold text-orange-500">{selected.size}</span> / {apiProducts.length} items selected for today
         </p>
-        <Button
-          onClick={handlePublish}
-          disabled={publishing || selected.size === 0}
-          className="text-white font-semibold text-sm"
-          style={{ background: 'linear-gradient(135deg,hsl(24 95% 53%),hsl(43 96% 52%))' }}
+        <motion.button
+          whileHover={{ scale: 1.03 }}
+          whileTap={{ scale: 0.95 }}
+          onClick={() => {
+            if (selected.size === 0) {
+              toast.warning('Please select at least one menu item to publish');
+              return;
+            }
+            if (
+              publishedSelection !== null &&
+              selected.size === publishedSelection.size &&
+              [...selected].every(id => publishedSelection.has(id))
+            ) {
+              toast.warning('This menu is already published. Please modify your selection before publishing again.');
+              return;
+            }
+            handlePublish();
+          }}
+          disabled={publishing}
+          className="relative flex items-center gap-2 px-3 py-1.5 rounded-xl font-semibold text-xs text-orange-400 overflow-hidden group border border-orange-500/30 bg-orange-500/15 hover:bg-orange-500/20 hover:border-orange-500/40 transition-colors disabled:opacity-40 disabled:pointer-events-none"
+          style={{ boxShadow: '0 0 12px -4px rgba(249,115,22,0.2), inset 0 1px 0 rgba(255,255,255,0.05)' }}
         >
-          {publishing ? (
-            <motion.div animate={{ rotate: 360 }} transition={{ repeat: Infinity, duration: 0.8 }}
-              className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full mr-2" />
-          ) : <Save className="w-4 h-4 mr-2" />}
+          <span className="absolute inset-0 translate-x-[-100%] group-hover:translate-x-[100%] transition-transform duration-700 bg-gradient-to-r from-transparent via-orange-400/10 to-transparent pointer-events-none" />
+          <span className="relative flex items-center justify-center shrink-0">
+            {publishing ? (
+              <motion.span animate={{ rotate: 360 }} transition={{ repeat: Infinity, duration: 0.8, ease: 'linear' }}
+                className="w-3.5 h-3.5 border-2 border-orange-400/30 border-t-orange-400 rounded-full block" />
+            ) : (
+              <>
+                <span className="absolute -top-0.5 -right-0.5 w-1.5 h-1.5 rounded-full bg-orange-400 animate-ping" />
+                <span className="absolute -top-0.5 -right-0.5 w-1.5 h-1.5 rounded-full bg-orange-400" />
+                <Send className="relative w-3.5 h-3.5" />
+              </>
+            )}
+          </span>
           {publishing ? 'Publishing...' : 'Publish Menu'}
-        </Button>
+        </motion.button>
       </div>
 
       {/* Product grid */}
@@ -100,8 +137,9 @@ export default function AdminMenuManagement() {
               onClick={() => toggleItem(id)}
               whileHover={{ scale: 1.02 }}
               className={`bg-card rounded-2xl border shadow-sm transition-all duration-200 overflow-hidden cursor-pointer ${
-                isSelected ? 'border-orange-400/60 ring-2 ring-orange-400/20' : 'border-border/60'
+                isSelected ? 'border-orange-400/60 ring-2 ring-orange-400/20 bg-orange-500/5' : 'border-border/60'
               }`}
+
             >
               {/* Image */}
               <div className="h-36 bg-muted/40 flex items-center justify-center overflow-hidden">

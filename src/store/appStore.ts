@@ -25,7 +25,7 @@ export interface User {
   emp_name: string;
   emp_mail: string;
   password: string;
-  role: 'admin' | 'user';
+  role: 'superadmin' | 'admin' | 'user';
 }
 
 export interface CartItem {
