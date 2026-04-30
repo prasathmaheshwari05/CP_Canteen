@@ -11,6 +11,7 @@ from app.routes import today_menu_routes
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 import os
+from app.routes import auth_routes, role_routes, user_routes
 
 os.makedirs("qrcodes", exist_ok=True)
 app = FastAPI()
@@ -38,6 +39,10 @@ Base.metadata.create_all(bind=engine)
 
 # 🔌 Include routers
 app.include_router(auth_routes.router, prefix="/auth", tags=["Auth"])
+# ✅ Roles
+app.include_router(role_routes.router, prefix="/auth", tags=["Roles"])
+# ✅ Users
+app.include_router(user_routes.router, prefix="/auth", tags=["Users"])
 app.include_router(test_routes.router, prefix="/test", tags=["Test"])
 app.include_router(menu_routes.router, prefix="/api", tags=["Menu"])
 app.include_router(payment_routes.router, prefix="/payment", tags=["Payment"])

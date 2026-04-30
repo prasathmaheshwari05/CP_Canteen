@@ -44,15 +44,6 @@ def register(user: UserCreate, db: Session = Depends(get_db)):
     return {"message": "User created successfully"}
 
 
-@router.get("/roles")
-def get_all_roles(db: Session = Depends(get_db)):
-    roles = db.query(User.role).all()
-
-    unique_roles = list(set([r[0].lower() for r in roles]))
-
-    return [
-        {"role_id": idx + 1, "role_name": role} for idx, role in enumerate(unique_roles)
-    ]
 
 
 # ✅ LOGIN
@@ -68,46 +59,3 @@ def login(user: UserLogin, db: Session = Depends(get_db)):
 
     return {"access_token": token, "token_type": "bearer", "role": db_user.role}
 
-
-@router.get("/users")
-def get_all_users(
-    db: Session = Depends(get_db),
-    # user=Depends(superadmin_required),  # ✅ only here
-):
-    users = db.query(User).all()
-    return users
-
-
-@router.delete("/users/{emp_id}")
-def delete_user(
-    emp_id: int,
-    db: Session = Depends(get_db),
-    # user=Depends(superadmin_required),
-):
-    db_user = db.query(User).filter(User.emp_id == emp_id).first()
-
-    if not db_user:
-        raise HTTPException(status_code=404, detail="User not found")
-
-    db.delete(db_user)
-    db.commit()
-
-    return {"message": "User deleted"}
-
-
-@router.put("/users/{emp_id}/role")
-def update_user_role(
-    emp_id: int,
-    role: str,
-    db: Session = Depends(get_db),
-    # user=Depends(superadmin_required),
-):
-    db_user = db.query(User).filter(User.emp_id == emp_id).first()
-
-    if not db_user:
-        raise HTTPException(status_code=404, detail="User not found")
-
-    db_user.role = role
-    db.commit()
-
-    return {"message": "Role updated"}
