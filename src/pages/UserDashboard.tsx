@@ -5,7 +5,16 @@ import {
   useSpring,
   useTransform,
 } from "framer-motion";
-import { Plus, Minus, ShoppingCart, CheckCircle, Sparkles } from "lucide-react";
+import {
+  Plus,
+  Minus,
+  ShoppingCart,
+  CheckCircle,
+  Sparkles,
+  Zap,
+  Timer,
+  TrendingUp,
+} from "lucide-react";
 import { useAppStore } from "@/store/appStore";
 import { toast } from "sonner";
 import ApiService from "@/api/apiServices";
@@ -13,64 +22,19 @@ import ApiService from "@/api/apiServices";
 const catEmojis: Record<string, string> = {
   Breakfast: "🌅",
   Lunch: "☀️",
-  Dinner: "🌙"
+  Dinner: "🌙",
 };
 const catColors: Record<string, string> = {
   Breakfast: "bg-amber-500/15 text-amber-400 border-amber-500/25",
   Lunch: "bg-emerald-500/15 text-emerald-400 border-emerald-500/25",
-  Dinner: "bg-orange-500/15 text-orange-400 border-orange-500/25"
+  Dinner: "bg-orange-500/15 text-orange-400 border-orange-500/25",
 };
 
-const foodSlides = [
-  { src: "/Food-images/poori.jpg", label: "Poori" },
-  { src: "/Food-images/idli.jpeg", label: "Idli" },
-  { src: "/Food-images/dosa.jpg", label: "Dosa" },
-  { src: "/Food-images/veg biriyani.jpg", label: "Veg Biryani" },
-  { src: "/Food-images/chappathi.jpg", label: "Chapati" },
-  { src: "/Food-images/parotta.jpg", label: "Parotta" },
-  { src: "/Food-images/pongal.jpg", label: "Pongal" },
-  { src: "/Food-images/pulao.jpg", label: "Pulao" },
-  { src: "/Food-images/kichadi.jpg", label: "Kichadi" },
-  { src: "/Food-images/semiya.jpg", label: "Semiya" },
+const dashboardVideos = [
+  { src: "/dashboardVideos/video1.mp4" },
+  { src: "/dashboardVideos/video2.mp4" },
 ];
-const loopSlides = [...foodSlides, ...foodSlides];
-
-function CarouselRow({
-  slides,
-  direction = "left",
-}: {
-  slides: typeof foodSlides;
-  direction?: "left" | "right";
-}) {
-  return (
-    <div className="overflow-hidden w-full">
-      <motion.div
-        className="flex gap-3"
-        animate={{ x: direction === "left" ? ["0%", "-50%"] : ["-50%", "0%"] }}
-        transition={{ duration: 20, repeat: Infinity, ease: "linear" }}
-      >
-        {slides.map((slide, i) => (
-          <div
-            key={i}
-            className="relative shrink-0 h-28 sm:h-36 rounded-xl overflow-hidden border border-border/40"
-            style={{ width: "calc(33.33% - 10px)", minWidth: '120px' }}
-          >
-            <img
-              src={slide.src}
-              alt={slide.label}
-              className="w-full h-full object-cover"
-              draggable={false}
-            />
-            <div className="absolute inset-0 bg-gradient-to-t from-black/60 to-transparent" />
-            <p className="absolute bottom-1.5 left-2 text-white text-[10px] font-bold">
-              {slide.label}
-            </p>
-          </div>
-        ))}
-      </motion.div>
-    </div>
-  );
-}
+const mealWindows = ["Breakfast", "Lunch", "Dinner"];
 
 function AnimatedPrice({ value }: { value: number }) {
   const spring = useSpring(value, { stiffness: 300, damping: 30 });
@@ -83,6 +47,7 @@ export default function UserDashboard() {
   const { addToCart, updateCartQty, cart, addMyOrder } = useAppStore();
   const [menuProducts, setMenuProducts] = useState<any[]>([]);
   const [menuLoading, setMenuLoading] = useState(true);
+  const [activeVideo, setActiveVideo] = useState(0);
   const [showBill, setShowBill] = useState(false);
   const [showCheckout, setShowCheckout] = useState(false);
   const [confirmed, setConfirmed] = useState(false);
@@ -91,7 +56,7 @@ export default function UserDashboard() {
     total_amount: number;
   } | null>(null);
   const [orderId] = useState(
-    () => "ORD-" + Math.random().toString(36).slice(2, 8).toUpperCase()
+    () => "ORD-" + Math.random().toString(36).slice(2, 8).toUpperCase(),
   );
   const billRef = useRef<HTMLDivElement>(null);
 
@@ -111,15 +76,25 @@ export default function UserDashboard() {
     };
     fetchTodayMenu();
   }, []);
+
+  useEffect(() => {
+    const timer = setInterval(() => {
+      setActiveVideo((prev) => (prev + 1) % dashboardVideos.length);
+    }, 10000);
+    return () => clearInterval(timer);
+  }, []);
+
   const total = cart.reduce((s, c) => s + c.product.price * c.quantity, 0);
   const totalItems = cart.reduce((s, c) => s + c.quantity, 0);
+  const avgItemPrice = totalItems > 0 ? Math.round(total / totalItems) : 0;
+  const currentMealWindow = mealWindows[new Date().getHours() % mealWindows.length];
 
   const handleViewBill = () => {
     setShowBill(true);
     setTimeout(
       () =>
         billRef.current?.scrollIntoView({ behavior: "smooth", block: "start" }),
-      80
+      80,
     );
   };
 
@@ -139,7 +114,11 @@ export default function UserDashboard() {
         id: res.data.id,
         total_amount: res.data.total_amount,
         created_at: new Date().toISOString(),
-        items: cart.map(c => ({ menu_id: Number(c.product.id), quantity: c.quantity, name: c.product.name })),
+        items: cart.map((c) => ({
+          menu_id: Number(c.product.id),
+          quantity: c.quantity,
+          name: c.product.name,
+        })),
       });
       setConfirmed(true);
     } catch (err: any) {
@@ -158,44 +137,94 @@ export default function UserDashboard() {
 
   return (
     <div className="flex flex-col gap-4 p-2 pb-8">
-      {/* Page Title */}
-      <div className="flex justify-center pt-1 px-2">
-        <motion.h1
-          animate={{
-            textShadow: [
-              "0 0 7px rgba(249,115,22,0.8), 0 0 15px rgba(249,115,22,0.5), 0 0 30px rgba(249,115,22,0.2)",
-              "0 0 12px rgba(249,115,22,1), 0 0 25px rgba(249,115,22,0.8), 0 0 50px rgba(249,115,22,0.4)",
-              "0 0 7px rgba(249,115,22,0.8), 0 0 15px rgba(249,115,22,0.5), 0 0 30px rgba(249,115,22,0.2)",
-            ],
-          }}
-          transition={{ duration: 2.8, repeat: Infinity, ease: "easeInOut" }}
-          className="text-sm sm:text-xl font-bold tracking-widest uppercase text-orange-400 text-center"
-        >
-          Reserve Your Meal, Skip The Wait
-        </motion.h1>
-      </div>
+      {/* Video Hero */}
+      <section className="relative rounded-3xl overflow-hidden bg-black shadow-[0_20px_60px_rgba(0,0,0,0.35)]">
+        <div className="relative h-[56vh] min-h-[360px] max-h-[620px] w-full">
+          <AnimatePresence mode="wait">
+            <motion.video
+              key={dashboardVideos[activeVideo].src}
+              src={dashboardVideos[activeVideo].src}
+              autoPlay
+              muted
+              loop
+              playsInline
+              initial={{ opacity: 0.15, scale: 1.02 }}
+              animate={{ opacity: 1, scale: 1 }}
+              exit={{ opacity: 0.2 }}
+              transition={{ duration: 0.6, ease: "easeOut" }}
+              className="absolute inset-0 h-full w-full object-cover outline-none"
+            />
+          </AnimatePresence>
 
-      {/* Carousel */}
-      <div className="relative rounded-2xl overflow-hidden">
-        <CarouselRow slides={loopSlides} direction="left" />
-      </div>
+          <div className="absolute inset-0 bg-gradient-to-r from-black/70 via-black/35 to-black/45" />
+          <div className="absolute inset-0 bg-gradient-to-t from-black/65 via-transparent to-black/20" />
+
+          <div className="relative z-10 flex h-full flex-col justify-between p-4 sm:p-6">
+            <div className="flex flex-1 items-center">
+              <div className="max-w-lg">
+                <motion.p
+                  key={dashboardVideos[activeVideo].src}
+                  initial={{ opacity: 0, y: 8 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  transition={{ duration: 0.35 }}
+                  className="text-xl font-bold tracking-tight text-white drop-shadow-md sm:text-3xl md:text-[2.4rem]"
+                  style={{ fontFamily: "'Playfair Display', 'Georgia', serif" }}
+                >
+                  <span className="block mb-2 sm:mb-2.5">it’s not just</span>
+                  <span className="block mb-2 sm:mb-2.5">Food, It’s an</span>
+                  <span className="block">Experience.</span>
+                </motion.p>
+              </div>
+            </div>
+
+            <div className="flex items-center justify-between gap-3">
+              <div className="flex gap-2">
+                {dashboardVideos.map((video, index) => (
+                  <button
+                    key={video.src}
+                    type="button"
+                    onClick={() => setActiveVideo(index)}
+                    className={`h-2.5 rounded-full transition-all duration-300 ${
+                      activeVideo === index
+                        ? "w-9 bg-orange-400"
+                        : "w-2.5 bg-white/55 hover:bg-white/90"
+                    } focus:outline-none focus-visible:outline-none focus-visible:ring-0`}
+                    aria-label={`Show clip ${index + 1}`}
+                  />
+                ))}
+              </div>
+            </div>
+          </div>
+        </div>
+      </section>
 
       {/* Today's Menu Banner */}
       <motion.div
         initial={{ opacity: 0, y: 10 }}
         animate={{ opacity: 1, y: 0 }}
-        className="relative rounded-2xl overflow-hidden p-5 flex items-center justify-between gap-4 border border-orange-500/20"
+        whileHover={{ y: -2 }}
+        transition={{ type: "spring", stiffness: 260, damping: 22 }}
+        className="relative rounded-3xl overflow-hidden p-5 sm:p-6 flex items-center justify-between gap-4 border border-cyan-300/25 bg-slate-950/70"
         style={{
           background:
-            "linear-gradient(135deg,hsl(24 95% 53% / 0.08),hsl(43 96% 52% / 0.05))",
+            "radial-gradient(circle at 0% 0%,rgba(14,116,144,0.28),transparent 45%),radial-gradient(circle at 100% 100%,rgba(249,115,22,0.2),transparent 40%),linear-gradient(130deg,rgba(2,6,23,0.92),rgba(15,23,42,0.88))",
         }}
       >
+        <div
+          className="absolute inset-0 pointer-events-none opacity-35"
+          style={{
+            backgroundImage:
+              "linear-gradient(rgba(56,189,248,0.12) 1px,transparent 1px),linear-gradient(90deg,rgba(56,189,248,0.12) 1px,transparent 1px)",
+            backgroundSize: "24px 24px",
+          }}
+        />
         <div className="flex items-center gap-4">
           <div
-            className="w-11 h-11 rounded-xl flex items-center justify-center shrink-0"
+            className="w-12 h-12 rounded-2xl flex items-center justify-center shrink-0 border border-cyan-200/30"
             style={{
               background:
-                "linear-gradient(135deg,hsl(24 95% 53%),hsl(43 96% 52%))",
+                "linear-gradient(145deg,rgba(249,115,22,0.95),rgba(56,189,248,0.9))",
+              boxShadow: "0 8px 22px rgba(14,165,233,0.35)",
             }}
           >
             <motion.span
@@ -210,16 +239,19 @@ export default function UserDashboard() {
               🍽️
             </motion.span>
           </div>
-          <div>
-            <p className="text-sm font-bold text-foreground">
+          <div className="relative z-10">
+            <p className="text-sm font-bold text-white sm:text-base">
               Today's Food Reservation
             </p>
-            <p className="text-xs text-muted-foreground">
+            <p className="text-xs text-slate-300 sm:text-sm">
               Book before{" "}
-              <span className="text-orange-400 font-semibold">4:00 PM</span> to
+              <span className="text-cyan-300 font-semibold">4:00 PM</span> to
               secure your plate!
             </p>
           </div>
+        </div>
+        <div className="hidden sm:flex items-center gap-2 rounded-full border border-cyan-300/30 bg-cyan-500/10 px-3 py-1.5 text-[11px] font-semibold text-cyan-100">
+          Live Menu
         </div>
       </motion.div>
 
@@ -239,7 +271,6 @@ export default function UserDashboard() {
         </div>
       ) : menuProducts.length > 0 ? (
         <div>
-        
           {/* Menu Grid */}
           <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-x-3 gap-y-14 pt-12">
             {menuProducts.map((p) => {
@@ -258,26 +289,27 @@ export default function UserDashboard() {
                 <motion.div
                   key={pid}
                   whileHover={{
-                    y: -4,
-                    boxShadow: "0 16px 40px rgba(0,0,0,0.12)",
+                    y: -7,
+                    scale: 1.01,
                   }}
-                  transition={{ type: "spring", stiffness: 300, damping: 22 }}
-                  className="relative rounded-3xl flex flex-col items-center pt-14 px-3 pb-3"
-                  style={{
-                    background: "#ffffff",
-                    boxShadow: inCart
-                      ? "0 4px 20px rgba(245,166,35,0.25)"
-                      : "0 4px 20px rgba(0,0,0,0.08)",
-                    minHeight: "160px",
-                    border: inCart
-                      ? "2px solid #f5a623"
-                      : "2px solid transparent",
-                  }}
+                  transition={{ type: "spring", stiffness: 280, damping: 20 }}
+                  className={`group relative rounded-3xl flex flex-col items-center pt-12 px-3.5 pb-3.5 border min-h-[146px] ${
+                    inCart
+                      ? "border-cyan-400/70 dark:border-cyan-400/80 shadow-[0_14px_34px_rgba(14,165,233,0.28)]"
+                      : "border-slate-300/50 dark:border-slate-700/70 shadow-[0_12px_26px_rgba(15,23,42,0.12)] dark:shadow-[0_12px_30px_rgba(2,6,23,0.5)]"
+                  } bg-gradient-to-b from-white to-slate-50 dark:from-slate-900 dark:to-slate-950`}
                 >
+                  <div
+                    className="pointer-events-none absolute inset-0 rounded-3xl opacity-0 group-hover:opacity-100 transition-opacity duration-300"
+                    style={{
+                      background:
+                        "linear-gradient(130deg,rgba(56,189,248,0.08),transparent 45%,rgba(249,115,22,0.1))",
+                    }}
+                  />
                   {/* Floating food image */}
                   <div
-                    className="absolute -top-10 left-1/2 -translate-x-1/2 w-20 h-20 rounded-full overflow-hidden shrink-0"
-                    style={{ boxShadow: "0 8px 24px rgba(0,0,0,0.15)" }}
+                    className="absolute -top-10 left-1/2 -translate-x-1/2 w-20 h-20 rounded-full overflow-hidden shrink-0 border-4 border-white dark:border-slate-900"
+                    style={{ boxShadow: "0 10px 24px rgba(15,23,42,0.26)" }}
                   >
                     {p.images?.[0] ? (
                       <img
@@ -296,76 +328,71 @@ export default function UserDashboard() {
                   </div>
 
                   <p
-                    className="text-sm font-extrabold text-center leading-tight mb-1 w-full px-1 tracking-wide"
+                    className="text-sm font-extrabold text-center leading-snug mb-1 w-full px-1 tracking-wide text-slate-900 dark:text-slate-100"
                     style={{
-                      color: "#1a1a1a",
                       wordBreak: "break-word",
-                      fontFamily: "'Georgia', serif",
+                      fontFamily: "'Playfair Display', 'Georgia', serif",
                       letterSpacing: "0.02em",
                     }}
                   >
                     {p.name}
                   </p>
 
-                  <p
-                    className="text-[10px] text-center mb-3"
-                    style={{ color: "#999" }}
-                  >
+                  <p className="text-[10px] text-center mb-2 text-slate-500 dark:text-slate-400">
                     {p.category}
                   </p>
 
-                  <div className="flex items-center justify-between w-full mt-auto">
-                    <p
-                      className="text-sm font-black leading-none"
-                      style={{ color: "#1a1a1a" }}
-                    >
-                      ₹{p.price}
-                    </p>
-
-                    {!inCart ? (
+                  {!inCart ? (
+                    <div className="grid grid-cols-[1fr_auto] items-center gap-2 w-full mt-auto">
+                      <p className="text-sm font-black leading-none text-slate-900 dark:text-slate-100 truncate pr-1">
+                        ₹{p.price}
+                      </p>
                       <motion.button
                         whileTap={{ scale: 0.85 }}
                         onClick={() => addToCart(cartProduct)}
-                        className="w-8 h-8 rounded-xl flex items-center justify-center text-white font-black"
+                        className="w-8 h-8 rounded-xl flex items-center justify-center text-white font-black shadow-[0_7px_16px_rgba(14,165,233,0.35)]"
                         style={{
-                          background: "#f5a623",
-                          boxShadow: "0 4px 12px rgba(245,166,35,0.4)",
+                          background:
+                            "linear-gradient(135deg,rgba(249,115,22,1),rgba(56,189,248,1))",
                         }}
                       >
                         <Plus className="w-4 h-4" />
                       </motion.button>
-                    ) : (
-                      <div className="flex items-center gap-1.5">
+                    </div>
+                  ) : (
+                    <div className="w-full mt-auto space-y-2">
+                      <p className="text-sm font-black leading-none text-slate-900 dark:text-slate-100">
+                        ₹{p.price}
+                      </p>
+                      <div className="flex items-center gap-1.5 rounded-xl border border-cyan-200/80 dark:border-cyan-800/60 bg-cyan-50/80 dark:bg-cyan-950/40 px-1.5 py-1 w-full justify-between">
                         <motion.button
                           whileTap={{ scale: 0.85 }}
                           onClick={() =>
                             updateCartQty(pid, inCart.quantity - 1)
                           }
-                          className="w-7 h-7 rounded-lg flex items-center justify-center font-black"
+                          className="w-6 h-6 rounded-md flex items-center justify-center font-black bg-white/90 dark:bg-slate-900/70 text-cyan-700 dark:text-cyan-300 hover:bg-white dark:hover:bg-slate-900"
                           style={{
-                            background: "rgba(245,166,35,0.15)",
-                            color: "#f5a623",
+                            boxShadow: "0 3px 10px rgba(14,165,233,0.2)",
                           }}
                         >
-                          <Minus className="w-3.5 h-3.5" />
+                          <Minus className="w-3.5 h-3.5" strokeWidth={2.8} />
                         </motion.button>
-                        <span className="text-sm font-black text-gray-800 w-4 text-center">
+                        <span className="text-sm font-black text-slate-900 dark:text-slate-100 w-6 text-center">
                           {inCart.quantity}
                         </span>
                         <motion.button
                           whileTap={{ scale: 0.85 }}
                           onClick={() => addToCart(cartProduct)}
-                          className="w-7 h-7 rounded-lg flex items-center justify-center font-black"
+                          className="w-6 h-6 rounded-md flex items-center justify-center font-black bg-white/90 dark:bg-slate-900/70 text-cyan-700 dark:text-cyan-300 hover:bg-white dark:hover:bg-slate-900"
                           style={{
-                            background: "rgba(245,166,35,0.15)",
-                            color: "#f5a623",
+                            boxShadow: "0 3px 10px rgba(14,165,233,0.2)",
                           }}
                         >
-                          <Plus className="w-3.5 h-3.5" />
+                          <Plus className="w-3.5 h-3.5" strokeWidth={2.8} />
                         </motion.button>
                       </div>
-                    )}
-                  </div>
+                    </div>
+                  )}
                 </motion.div>
               );
             })}
@@ -704,8 +731,8 @@ export default function UserDashboard() {
                                   i === 0
                                     ? "1.5px solid #8b5cf6"
                                     : i === 1
-                                    ? "1.5px solid #06b6d4"
-                                    : "1.5px solid #a78bfa",
+                                      ? "1.5px solid #06b6d4"
+                                      : "1.5px solid #a78bfa",
                               }}
                               animate={{
                                 scale: [1, 1.4 + i * 0.15, 1],

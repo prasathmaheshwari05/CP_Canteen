@@ -8,6 +8,9 @@ import {
   X,
   CheckCircle,
   AlertCircle,
+  Clock3,
+  CalendarDays,
+  Sparkles,
 } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 import { useAppStore, Role } from "@/store/appStore";
@@ -36,6 +39,12 @@ const roleBadgeStyle: Record<Role, string> = {
   user: "bg-emerald-500/15 text-emerald-400 border-emerald-500/25",
 };
 
+const roleContextLine: Record<Role, string> = {
+  "super-admin": "System status healthy",
+  admin: "Pickup queue in progress",
+  user: "Reserve before 4:00 PM",
+};
+
 interface ScanResult {
   orderId: string;
   items: { name: string; quantity: number }[];
@@ -61,21 +70,26 @@ export function TopHeader({
   const [scanResult, setScanResult] = useState<ScanResult | null>(null);
   const [scanError, setScanError] = useState("");
   const [scanning, setScanning] = useState(false);
+  const [now, setNow] = useState(() => new Date());
   const videoRef = useRef<HTMLVideoElement>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const streamRef = useRef<MediaStream | null>(null);
   const rafRef = useRef<number | null>(null);
   const activeRef = useRef(false);
 
-  const empName = (currentUser as any)?.emp_name?.trim() || (currentUser as any)?.emp_mail?.split('@')[0] || "";
+  const empName =
+    (currentUser as any)?.emp_name?.trim() ||
+    (currentUser as any)?.emp_mail?.split("@")[0] ||
+    "";
   const displayName = empName || roleLabels[currentRole];
   const displayEmail = (currentUser as any)?.emp_mail ?? "";
   const nameParts = empName ? empName.split(/\s+/) : [];
-  const initials = nameParts.length >= 2
-    ? (nameParts[0][0] + nameParts[nameParts.length - 1][0]).toUpperCase()
-    : nameParts.length === 1
-    ? nameParts[0].slice(0, 2).toUpperCase()
-    : "U";
+  const initials =
+    nameParts.length >= 2
+      ? (nameParts[0][0] + nameParts[nameParts.length - 1][0]).toUpperCase()
+      : nameParts.length === 1
+        ? nameParts[0].slice(0, 2).toUpperCase()
+        : "U";
 
   const stopCamera = () => {
     activeRef.current = false;
@@ -98,6 +112,21 @@ export function TopHeader({
     setScanError("");
     setScanning(false);
   };
+
+  useEffect(() => {
+    const t = setInterval(() => setNow(new Date()), 1000);
+    return () => clearInterval(t);
+  }, []);
+
+  const nowTime = now.toLocaleTimeString([], {
+    hour: "2-digit",
+    minute: "2-digit",
+  });
+  const nowDate = now.toLocaleDateString([], {
+    weekday: "short",
+    day: "2-digit",
+    month: "short",
+  });
 
   useEffect(() => {
     if (!showScanner || scanResult) return;
@@ -129,12 +158,12 @@ export function TopHeader({
               0,
               0,
               canvas.width,
-              canvas.height
+              canvas.height,
             );
             const code = jsQR(
               imageData.data,
               imageData.width,
-              imageData.height
+              imageData.height,
             );
             if (code?.data) {
               activeRef.current = false;
@@ -149,12 +178,15 @@ export function TopHeader({
               ApiService.get(`/api/admin/scan/${orderId}`)
                 .then(async (res) => {
                   const d = res.data;
-                  console.log('Scan response:', JSON.stringify(d));
+                  console.log("Scan response:", JSON.stringify(d));
                   // fetch menu to resolve names
                   let menuMap: Record<number, string> = {};
                   try {
-                    const mRes = await ApiService.get('/api/today-menu');
-                    console.log('Menu response:', JSON.stringify(mRes.data?.slice(0,3)));
+                    const mRes = await ApiService.get("/api/today-menu");
+                    console.log(
+                      "Menu response:",
+                      JSON.stringify(mRes.data?.slice(0, 3)),
+                    );
                     (mRes.data ?? []).forEach((m: any) => {
                       menuMap[m.menu_id ?? m.id] = m.name;
                     });
@@ -171,7 +203,11 @@ export function TopHeader({
                       orderId: String(d.order_id ?? orderId),
                       items:
                         d.items?.map((it: any) => ({
-                          name: it.name ?? it.menu_name ?? menuMap[it.menu_id] ?? `Item #${it.menu_id}`,
+                          name:
+                            it.name ??
+                            it.menu_name ??
+                            menuMap[it.menu_id] ??
+                            `Item #${it.menu_id}`,
                           quantity: it.quantity,
                         })) ?? [],
                       total: d.total_amount ?? 0,
@@ -212,25 +248,25 @@ export function TopHeader({
             Authorization: `Bearer ${token}`,
             "ngrok-skip-browser-warning": "true",
           },
-        }
+        },
       );
       window.dispatchEvent(
         new CustomEvent("qr-order-received", {
           detail: { orderId: scanResult.orderId },
-        })
+        }),
       );
       closeScanner();
     } catch (err: any) {
       const detail = err?.response?.data?.detail;
       console.error(
         "Status update error:",
-        JSON.stringify(err?.response?.data)
+        JSON.stringify(err?.response?.data),
       );
       const errorText = Array.isArray(detail)
         ? detail.map((e: any) => e.msg).join(", ")
         : typeof detail === "string"
-        ? detail
-        : "Failed to update order status";
+          ? detail
+          : "Failed to update order status";
       setScanError(errorText);
       setScanResult(null);
     }
@@ -238,7 +274,10 @@ export function TopHeader({
 
   return (
     <>
-      <header className="h-14 sm:h-16 border-b border-border bg-card/50 backdrop-blur-xl flex items-center justify-between px-3 sm:px-5 sticky top-0 z-30 gap-2">
+      <header
+        className="h-14 sm:h-16 border-b border-border backdrop-blur-xl flex items-center justify-between px-3 sm:px-5 sticky top-0 z-30 gap-2"
+        style={{ background: "hsl(var(--sidebar-background))" }}
+      >
         <div className="flex items-center gap-2 sm:gap-3">
           {/* Mobile hamburger */}
           <button
@@ -255,7 +294,10 @@ export function TopHeader({
               whileTap={{ scale: 0.95 }}
               onClick={openScanner}
               className="relative flex items-center gap-2 px-3 sm:px-4 py-2 rounded-xl font-semibold text-sm text-orange-400 overflow-hidden group border border-orange-500/30 bg-orange-500/15 hover:bg-orange-500/20 hover:border-orange-500/40 transition-colors"
-              style={{ boxShadow: "0 0 12px -4px rgba(249,115,22,0.2), inset 0 1px 0 rgba(255,255,255,0.05)" }}
+              style={{
+                boxShadow:
+                  "0 0 12px -4px rgba(249,115,22,0.2), inset 0 1px 0 rgba(255,255,255,0.05)",
+              }}
             >
               {/* shimmer sweep on hover */}
               <span className="absolute inset-0 translate-x-[-100%] group-hover:translate-x-[100%] transition-transform duration-700 bg-gradient-to-r from-transparent via-orange-400/10 to-transparent pointer-events-none" />
@@ -270,13 +312,53 @@ export function TopHeader({
           )}
         </div>
 
+        <motion.div
+          initial={{ opacity: 0, y: -6 }}
+          animate={{ opacity: 1, y: 0 }}
+          className="hidden md:flex items-center min-w-0"
+        >
+          <div
+            className="relative flex items-center gap-2.5 rounded-2xl border border-cyan-300/30 dark:border-cyan-700/55 px-3 py-2 overflow-hidden bg-white/40 dark:bg-slate-900/55"
+            style={{
+              background:
+                "linear-gradient(135deg,rgba(255,255,255,0.5),rgba(103,232,249,0.16),rgba(249,115,22,0.14))",
+            }}
+          >
+            <motion.div
+              className="absolute inset-0 bg-gradient-to-r from-transparent via-white/20 to-transparent"
+              animate={{ x: ["-120%", "120%"] }}
+              transition={{ duration: 3.2, repeat: Infinity, ease: "linear" }}
+            />
+            <div className="relative z-10 flex items-center gap-1.5 rounded-full bg-white/65 dark:bg-slate-800/70 border border-slate-300/45 dark:border-slate-600/70 px-2 py-1 text-[10px] text-slate-700 dark:text-slate-100">
+              <CalendarDays className="w-3.5 h-3.5 text-slate-600 dark:text-slate-200" />
+              <span className="font-semibold">{nowDate}</span>
+            </div>
+            <div className="relative z-10 flex items-center gap-1.5 rounded-full bg-cyan-500/15 dark:bg-cyan-500/25 border border-cyan-300/45 dark:border-cyan-500/55 px-2 py-1 text-[10px] text-cyan-900 dark:text-cyan-100">
+              <Clock3 className="w-3.5 h-3.5 text-cyan-800 dark:text-cyan-100" />
+              <span className="font-semibold">{nowTime}</span>
+            </div>
+            <div className="relative z-10 hidden lg:flex items-center gap-1.5 rounded-full bg-orange-500/12 dark:bg-orange-500/25 border border-orange-300/45 dark:border-orange-500/55 px-2 py-1 text-[10px] text-orange-900 dark:text-orange-100">
+              <span className="relative flex h-2.5 w-2.5">
+                <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-500/70" />
+                <span className="relative inline-flex rounded-full h-2.5 w-2.5 bg-emerald-500" />
+              </span>
+              <Sparkles className="w-3.5 h-3.5 text-orange-700 dark:text-orange-100" />
+              <span className="font-semibold">{roleContextLine[currentRole]}</span>
+            </div>
+          </div>
+        </motion.div>
+
         <div className="flex items-center gap-2 sm:gap-3">
           <ThemeToggle />
 
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
-              <button className="w-9 h-9 rounded-xl flex items-center justify-center text-sm font-bold text-white hover:opacity-90 hover:ring-2 hover:ring-orange-500/40 transition-all cursor-pointer"
-                style={{ background: "linear-gradient(135deg, hsl(24 95% 53%), hsl(43 96% 52%))" }}
+              <button
+                className="w-9 h-9 rounded-xl flex items-center justify-center text-sm font-bold text-white hover:opacity-90 hover:ring-2 hover:ring-orange-500/40 transition-all cursor-pointer"
+                style={{
+                  background:
+                    "linear-gradient(135deg, hsl(24 95% 53%), hsl(43 96% 52%))",
+                }}
               >
                 {initials}
               </button>
@@ -284,7 +366,9 @@ export function TopHeader({
             <DropdownMenuContent align="end" className="w-48">
               <div className="px-2 py-1.5">
                 <p className="text-sm font-semibold">{displayName}</p>
-                <span className={`px-2 py-0.5 rounded-full text-[10px] font-semibold border whitespace-nowrap ${roleBadgeStyle[currentRole]}`}>
+                <span
+                  className={`px-2 py-0.5 rounded-full text-[10px] font-semibold border whitespace-nowrap ${roleBadgeStyle[currentRole]}`}
+                >
                   {roleLabels[currentRole]}
                 </span>
               </div>

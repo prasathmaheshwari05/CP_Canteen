@@ -13,8 +13,9 @@ import {
   ChefHat,
   ClipboardList,
   LogOut,
-  ChevronLeft,
-  ChevronRight,
+  PanelLeftClose,
+  PanelLeftOpen,
+  X,
   BookOpen,
 } from "lucide-react";
 import { useAppStore, Role } from "@/store/appStore";
@@ -46,11 +47,13 @@ function ParallaxMenuItem({
   isActive,
   collapsed,
   index,
+  onNavigate,
 }: {
   item: { label: string; icon: React.ElementType; path: string };
   isActive: boolean;
   collapsed: boolean;
   index: number;
+  onNavigate?: () => void;
 }) {
   const x = useMotionValue(0);
   const y = useMotionValue(0);
@@ -82,8 +85,18 @@ function ParallaxMenuItem({
       <motion.div style={{ rotateX, rotateY, transformStyle: "preserve-3d" }}>
         <Link
           to={item.path}
-          className={`sidebar-link ${isActive ? "active" : ""}`}
+          onClick={onNavigate}
+          className={`group relative flex items-center gap-3 px-3 py-2.5 rounded-xl transition-all duration-200 border ${
+            collapsed ? "justify-center" : ""
+          } ${
+            isActive
+              ? "text-orange-700 dark:text-orange-300 bg-orange-500/15 border-orange-400/40 shadow-[0_8px_20px_rgba(249,115,22,0.22)]"
+              : "text-slate-600 dark:text-slate-300 hover:text-slate-900 dark:hover:text-white bg-white/35 dark:bg-slate-800/30 border-transparent hover:border-slate-300/50 dark:hover:border-slate-600/50 hover:bg-white/60 dark:hover:bg-slate-800/55"
+          }`}
         >
+          {isActive && (
+            <span className="absolute left-0 top-1/2 -translate-y-1/2 h-6 w-1 rounded-r-full bg-orange-500" />
+          )}
           <motion.div style={{ translateZ: 8 }} className="shrink-0">
             <item.icon className="w-[18px] h-[18px]" />
           </motion.div>
@@ -112,15 +125,19 @@ interface AppSidebarProps {
   onMobileClose?: () => void;
 }
 
-export function AppSidebar({ collapsed, onToggleCollapse, onMobileClose }: AppSidebarProps) {
+export function AppSidebar({
+  collapsed,
+  onToggleCollapse,
+  onMobileClose,
+}: AppSidebarProps) {
   const location = useLocation();
   const navigate = useNavigate();
   const { currentRole, setCurrentUser } = useAppStore();
 
   const handleLogout = () => {
-    sessionStorage.removeItem('access_token');
+    sessionStorage.removeItem("access_token");
     setCurrentUser(null);
-    navigate('/login');
+    navigate("/login");
   };
   const items = roleMenus[currentRole] ?? [];
 
@@ -128,14 +145,21 @@ export function AppSidebar({ collapsed, onToggleCollapse, onMobileClose }: AppSi
     <motion.aside
       animate={{ width: collapsed ? 72 : 256 }}
       transition={{ duration: 0.3, ease: "easeInOut" }}
-      className="h-full flex flex-col z-40 overflow-hidden"
+      className="h-full flex flex-col z-40 overflow-hidden relative"
       style={{
         background: "hsl(var(--sidebar-background))",
         borderRight: "1px solid hsl(var(--sidebar-border))",
       }}
     >
       <div
-        className={`h-16 flex items-center border-b border-sidebar-border shrink-0 px-4 ${
+        className="absolute inset-0 pointer-events-none opacity-70"
+        style={{
+          background:
+            "radial-gradient(circle at 0% 0%,rgba(56,189,248,0.18),transparent 40%),radial-gradient(circle at 100% 100%,rgba(249,115,22,0.15),transparent 45%)",
+        }}
+      />
+      <div
+        className={`h-16 flex items-center border-b border-sidebar-border/80 shrink-0 px-4 relative z-10 ${
           collapsed ? "justify-center" : "justify-between"
         }`}
       >
@@ -161,27 +185,32 @@ export function AppSidebar({ collapsed, onToggleCollapse, onMobileClose }: AppSi
           </div>
         )}
         <button
-          onClick={() => { onToggleCollapse(); onMobileClose?.(); }}
-          className="p-1.5 rounded-lg hover:bg-sidebar-accent text-sidebar-foreground/50 hover:text-sidebar-foreground transition-colors shrink-0 lg:flex hidden"
+          onClick={() => {
+            onToggleCollapse();
+            onMobileClose?.();
+          }}
+          className="p-2 rounded-xl bg-white/55 dark:bg-slate-900/65 border border-slate-300/50 dark:border-slate-700/70 hover:bg-white dark:hover:bg-slate-900 text-slate-600 dark:text-slate-300 hover:text-orange-600 dark:hover:text-orange-300 transition-all duration-200 shrink-0 lg:flex hidden shadow-sm hover:shadow-md"
+          aria-label={collapsed ? "Expand sidebar" : "Collapse sidebar"}
         >
           {collapsed ? (
-            <ChevronRight className="w-4 h-4" />
+            <PanelLeftOpen className="w-4 h-4" />
           ) : (
-            <ChevronLeft className="w-4 h-4" />
+            <PanelLeftClose className="w-4 h-4" />
           )}
         </button>
         {/* Mobile close button */}
         <button
           onClick={onMobileClose}
-          className="p-1.5 rounded-lg hover:bg-sidebar-accent text-sidebar-foreground/50 hover:text-sidebar-foreground transition-colors shrink-0 lg:hidden"
+          className="p-2 rounded-xl bg-white/55 dark:bg-slate-900/65 border border-slate-300/50 dark:border-slate-700/70 hover:bg-white dark:hover:bg-slate-900 text-slate-600 dark:text-slate-300 hover:text-orange-600 dark:hover:text-orange-300 transition-all duration-200 shrink-0 lg:hidden shadow-sm hover:shadow-md"
+          aria-label="Close sidebar"
         >
-          <ChevronLeft className="w-4 h-4" />
+          <X className="w-4 h-4" />
         </button>
       </div>
 
-      <nav className="flex-1 py-5 px-3 space-y-1 overflow-y-auto scrollbar-thin">
+      <nav className="flex-1 py-5 px-3 space-y-1.5 overflow-y-auto scrollbar-thin relative z-10">
         {!collapsed && (
-          <p className="text-[9px] uppercase tracking-widest text-sidebar-foreground/30 font-semibold px-3 pb-2">
+          <p className="text-[9px] uppercase tracking-widest text-slate-500 dark:text-slate-400 font-semibold px-3 pb-2">
             Navigation
           </p>
         )}
@@ -192,14 +221,18 @@ export function AppSidebar({ collapsed, onToggleCollapse, onMobileClose }: AppSi
             isActive={location.pathname === item.path}
             collapsed={collapsed}
             index={index}
+            onNavigate={() => {
+              onMobileClose?.();
+              if (!collapsed) onToggleCollapse();
+            }}
           />
         ))}
       </nav>
 
-      <div className="px-3 mb-4 shrink-0">
+      <div className="px-3 mb-4 shrink-0 relative z-10">
         <button
           onClick={handleLogout}
-          className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-red-500 hover:bg-red-500/15 hover:text-red-400 transition-all duration-200 ${
+          className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-red-500 dark:text-red-400 bg-red-500/5 border border-red-500/15 hover:bg-red-500/15 hover:border-red-500/30 hover:text-red-600 dark:hover:text-red-300 transition-all duration-200 ${
             collapsed ? "justify-center" : ""
           }`}
         >
