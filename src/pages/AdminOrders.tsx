@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
 import ReactDOM from 'react-dom';
 import { motion, AnimatePresence } from 'framer-motion';
-import { ShoppingBag, Users, IndianRupee, Package, X, ChevronLeft, ChevronRight, Utensils, CalendarDays, RefreshCw, Sparkles } from 'lucide-react';
+import { ShoppingBag, Users, IndianRupee, Package, X, ChevronLeft, ChevronRight, Utensils, CalendarDays, RefreshCw, Sparkles, Printer } from 'lucide-react';
 import { toast } from 'sonner';
 import ApiService from '@/api/apiServices';
 
@@ -15,6 +15,45 @@ interface Order {
   items: OrderItem[];
 }
 interface User { id: number; emp_id: number; emp_name: string; emp_mail: string; role: string; }
+
+function printOrders(orders: Order[], users: User[], menu: any[], getMenuName: (id: number) => string, selectedDate: string) {
+  const rows = orders.map(o => {
+    const user = users.find(u => u.id === o.user_id) ?? users.find(u => u.emp_id === o.user_id);
+    const empId = user?.emp_id ?? o.user_id;
+    const empName = user?.emp_name ?? `User #${o.user_id}`;
+    const items = o.items?.map(it => `${getMenuName(it.menu_id)} ×${it.quantity}`).join(', ') ?? '—';
+    return `<tr>
+      <td>${empId}</td>
+      <td>${empName}</td>
+      <td>#${o.id}</td>
+      <td>${items}</td>
+      <td>₹${o.total_amount}</td>
+      <td style="text-align:center"><input type="checkbox" /></td>
+    </tr>`;
+  }).join('');
+
+  const dateLabel = new Date(selectedDate + 'T00:00:00').toLocaleDateString([], { day: '2-digit', month: 'short', year: 'numeric' });
+
+  const html = `<!DOCTYPE html><html><head><title>Orders – ${dateLabel}</title>
+  <style>
+    body { font-family: Arial, sans-serif; padding: 24px; color: #111; }
+    h2 { margin-bottom: 4px; font-size: 18px; }
+    p { margin: 0 0 16px; color: #555; font-size: 13px; }
+    table { width: 100%; border-collapse: collapse; font-size: 13px; }
+    th { background: #f3f4f6; text-align: left; padding: 8px 10px; border: 1px solid #ddd; font-size: 11px; text-transform: uppercase; letter-spacing: .05em; }
+    td { padding: 8px 10px; border: 1px solid #ddd; vertical-align: middle; }
+    tr:nth-child(even) td { background: #fafafa; }
+    @media print { body { padding: 0; } }
+  </style></head><body>
+  <h2>All Orders</h2><p>${dateLabel} &nbsp;·&nbsp; ${orders.length} order${orders.length !== 1 ? 's' : ''}</p>
+  <table><thead><tr>
+    <th>Emp ID</th><th>Name</th><th>Order ID</th><th>Items Ordered</th><th>Price</th><th>Food Received ✓</th>
+  </tr></thead><tbody>${rows}</tbody></table>
+  <script>window.onload=()=>{window.print();}<\/script></body></html>`;
+
+  const w = window.open('', '_blank', 'width=900,height=650');
+  if (w) { w.document.write(html); w.document.close(); }
+}
 
 const toDateStr = (d: Date) => {
   const y = d.getFullYear();
@@ -388,6 +427,14 @@ export default function AdminOrders() {
               max={toDateStr(new Date())}
               onChange={v => { setSelectedDate(v); setCurrentPage(1); }}
             />
+            <motion.button
+              whileHover={{ scale: 1.05 }} whileTap={{ scale: 0.95 }}
+              onClick={() => printOrders(filtered, users, menu, getMenuName, selectedDate)}
+              disabled={filtered.length === 0}
+              className="flex items-center gap-1.5 h-8 px-3 rounded-lg text-xs font-semibold bg-gradient-to-br from-orange-500/15 to-orange-400/15 hover:from-orange-500/25 hover:to-orange-400/25 border border-orange-500/30 hover:border-orange-500/50 text-orange-400 transition-all disabled:opacity-40 disabled:cursor-not-allowed shadow-sm hover:shadow-md"
+            >
+              <Printer className="w-3.5 h-3.5" /> Print Orders
+            </motion.button>
             <motion.div
               whileHover={{ rotate: 180, scale: 1.1 }}
               whileTap={{ scale: 0.95 }}

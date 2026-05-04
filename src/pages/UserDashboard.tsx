@@ -11,9 +11,8 @@ import {
   ShoppingCart,
   CheckCircle,
   Sparkles,
-  Zap,
-  Timer,
-  TrendingUp,
+  ChevronDown,
+  ChevronUp,
 } from "lucide-react";
 import { useAppStore } from "@/store/appStore";
 import { toast } from "sonner";
@@ -24,18 +23,13 @@ const catEmojis: Record<string, string> = {
   Lunch: "☀️",
   Dinner: "🌙",
 };
-const catColors: Record<string, string> = {
-  Breakfast: "bg-amber-500/15 text-amber-400 border-amber-500/25",
-  Lunch: "bg-emerald-500/15 text-emerald-400 border-emerald-500/25",
-  Dinner: "bg-orange-500/15 text-orange-400 border-orange-500/25",
-};
+const CAT_ORDER = ["Breakfast", "Lunch", "Dinner"];
+const SHOW_LIMIT = 8;
 
 const dashboardVideos = [
   { src: "/dashboardVideos/video1.mp4" },
   { src: "/dashboardVideos/video2.mp4" },
 ];
-const mealWindows = ["Breakfast", "Lunch", "Dinner"];
-
 function AnimatedPrice({ value }: { value: number }) {
   const spring = useSpring(value, { stiffness: 300, damping: 30 });
   const display = useTransform(spring, (v) => `₹${Math.round(v)}`);
@@ -58,6 +52,9 @@ export default function UserDashboard() {
   const [orderId] = useState(
     () => "ORD-" + Math.random().toString(36).slice(2, 8).toUpperCase(),
   );
+  const [showAllMap, setShowAllMap] = useState<Record<string, boolean>>({});
+  const toggleShowAll = (cat: string) =>
+    setShowAllMap((prev) => ({ ...prev, [cat]: !prev[cat] }));
   const billRef = useRef<HTMLDivElement>(null);
 
   // Fetch today's menu from GET /api/today-menu
@@ -65,10 +62,19 @@ export default function UserDashboard() {
     const fetchTodayMenu = async () => {
       setMenuLoading(true);
       try {
-        const res = await ApiService.get("/api/today-menu");
-        setMenuProducts(res.data ?? []);
+        const [todayRes, menuRes] = await Promise.all([
+          ApiService.get("/api/today-menu"),
+          ApiService.get("/api/menu"),
+        ]);
+        const todayItems: any[] = todayRes.data ?? [];
+        const allProducts: any[] = menuRes.data ?? [];
+        // Merge category from /api/menu into today-menu items
+        const merged = todayItems.map((item: any) => {
+          const full = allProducts.find((p: any) => p.id === item.menu_id);
+          return { ...item, category: full?.category ?? "" };
+        });
+        setMenuProducts(merged);
       } catch {
-        // fallback: show nothing if API unavailable
         setMenuProducts([]);
       } finally {
         setMenuLoading(false);
@@ -86,8 +92,18 @@ export default function UserDashboard() {
 
   const total = cart.reduce((s, c) => s + c.product.price * c.quantity, 0);
   const totalItems = cart.reduce((s, c) => s + c.quantity, 0);
-  const avgItemPrice = totalItems > 0 ? Math.round(total / totalItems) : 0;
-  const currentMealWindow = mealWindows[new Date().getHours() % mealWindows.length];
+
+  const grouped = menuProducts.reduce<Record<string, any[]>>((acc, p) => {
+    const raw = (p.category ?? "").trim();
+    const cat = CAT_ORDER.find(c => c.toLowerCase() === raw.toLowerCase()) || raw || "Other";
+    (acc[cat] = acc[cat] || []).push(p);
+    return acc;
+  }, {});
+  const sortedCategories = Object.keys(grouped).sort((a, b) => {
+    const ai = CAT_ORDER.indexOf(a);
+    const bi = CAT_ORDER.indexOf(b);
+    return (ai === -1 ? 99 : ai) - (bi === -1 ? 99 : bi);
+  });
 
   const handleViewBill = () => {
     setShowBill(true);
@@ -228,11 +244,7 @@ export default function UserDashboard() {
           >
             <motion.span
               animate={{ rotate: [0, 8, -8, 0] }}
-              transition={{
-                duration: 2.5,
-                repeat: Infinity,
-                ease: "easeInOut",
-              }}
+              transition={{ duration: 2.5, repeat: Infinity, ease: "easeInOut" }}
               className="text-xl"
             >
               🍽️
@@ -243,9 +255,7 @@ export default function UserDashboard() {
               Today's Food Reservation
             </p>
             <p className="text-xs text-slate-300 sm:text-sm">
-              Book before{" "}
-              <span className="text-cyan-300 font-semibold">4:00 PM</span> to
-              secure your plate!
+              Browse the menu and add items to your cart!
             </p>
           </div>
         </div>
@@ -269,10 +279,74 @@ export default function UserDashboard() {
           </div>
         </div>
       ) : menuProducts.length > 0 ? (
-        <div>
-          {/* Menu Grid */}
-          <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-x-3 gap-y-14 pt-12">
-            {menuProducts.map((p) => {
+        <div className="space-y-8">
+          {sortedCategories.map((category, groupIdx) => {
+            const showAll = showAllMap[category];
+            const allItems = grouped[category];
+            const items = showAll ? allItems : allItems.slice(0, SHOW_LIMIT);
+            const hasMore = allItems.length > SHOW_LIMIT;
+            return (
+            <div key={category}>
+              {/* Category Badge */}
+              <motion.div
+                initial={{ opacity: 0, x: -8 }}
+                animate={{ opacity: 1, x: 0 }}
+                transition={{ delay: groupIdx * 0.08, type: "spring", stiffness: 300, damping: 26 }}
+                className="flex items-center gap-2.5 mb-6 mt-2"
+              >
+                <div className="flex-1 h-px bg-border/30" />
+                <div className="relative flex items-center gap-2 px-3 py-1 rounded-lg overflow-hidden border border-border bg-muted/40">
+                  <motion.div
+                    className="absolute inset-0 pointer-events-none"
+                    style={{ background: "linear-gradient(105deg,transparent 30%,hsl(var(--primary)/0.08) 50%,transparent 70%)" }}
+                    animate={{ x: ["-100%", "200%"] }}
+                    transition={{ duration: 3, repeat: Infinity, ease: "linear", repeatDelay: 3 }}
+                  />
+                  <motion.span
+                    animate={{ rotate: [0, 10, -10, 0] }}
+                    transition={{ duration: 3.5, repeat: Infinity, ease: "easeInOut" }}
+                    className="text-sm"
+                  >
+                    {catEmojis[category] || "🍽️"}
+                  </motion.span>
+                  <span className="text-xs font-bold tracking-widest uppercase text-foreground">
+                    {category}
+                  </span>
+                  <span className="text-[10px] font-medium text-muted-foreground">
+                    {allItems.length}
+                  </span>
+                </div>
+                <div className="flex-1 h-px bg-border/30" />
+              </motion.div>
+
+              {groupIdx === 0 && (
+                <motion.div
+                  initial={{ opacity: 0, y: 6 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  transition={{ delay: 0.1, type: "spring", stiffness: 280, damping: 24 }}
+                  className="flex justify-center mb-6"
+                >
+                  <p className="text-sm font-extrabold text-center tracking-tight text-emerald-400" style={{ textShadow: "0 0 18px rgba(52,211,153,0.35)" }}>
+                    🌙 Pre-book before 10:00 PM today — get your lunch delivered tomorrow!
+                  </p>
+                </motion.div>
+              )}
+
+              {category.toLowerCase() === "dinner" && (
+                <motion.div
+                  initial={{ opacity: 0, y: 6 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  transition={{ delay: 0.1, type: "spring", stiffness: 280, damping: 24 }}
+                  className="flex justify-center mb-6"
+                >
+                  <p className="text-sm font-extrabold text-center tracking-tight text-orange-400" style={{ textShadow: "0 0 18px rgba(249,115,22,0.35)" }}>
+                    ☀️ Book before 4:00 PM to secure your plate tonight!
+                  </p>
+                </motion.div>
+              )}
+
+              <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-x-3 gap-y-14 pt-12">
+                {items.map((p) => {
               const pid = String(p.menu_id ?? p.id);
               const inCart = cart.find((c) => c.product.id === pid);
               const cartProduct = {
@@ -393,9 +467,26 @@ export default function UserDashboard() {
                     </div>
                   )}
                 </motion.div>
-              );
-            })}
-          </div>
+                );
+                })}
+              </div>
+
+              {hasMore && (
+                <div className="flex justify-center pt-4">
+                  <button
+                    onClick={() => toggleShowAll(category)}
+                    className="inline-flex items-center gap-2 px-6 py-2.5 rounded-xl text-sm font-semibold border border-border/60 bg-muted/40 hover:bg-muted/70 text-muted-foreground hover:text-foreground transition-all"
+                  >
+                    {showAll
+                      ? <><ChevronUp className="w-4 h-4" /> Show Less</>
+                      : <><ChevronDown className="w-4 h-4" /> Show {allItems.length - SHOW_LIMIT} More Items</>
+                    }
+                  </button>
+                </div>
+              )}
+            </div>
+            );
+          })}
 
           {/* View Bill button */}
           <AnimatePresence>

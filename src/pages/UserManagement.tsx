@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import {
   Plus,
@@ -66,6 +66,19 @@ export default function UserManagement() {
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
   const [deleteTarget, setDeleteTarget] = useState<User | null>(null);
   const [deletingUser, setDeletingUser] = useState(false);
+  const [submitting, setSubmitting] = useState(false);
+  const roleDropRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    if (!roleDropOpen) return;
+    const handler = (e: MouseEvent) => {
+      if (roleDropRef.current && !roleDropRef.current.contains(e.target as Node)) {
+        setRoleDropOpen(false);
+      }
+    };
+    document.addEventListener("mousedown", handler);
+    return () => document.removeEventListener("mousedown", handler);
+  }, [roleDropOpen]);
 
   const fetchUsers = async () => {
     setApiLoading(true);
@@ -186,6 +199,7 @@ export default function UserManagement() {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!validate()) return;
+    setSubmitting(true);
     if (editing) {
       try {
         const payload: any = {
@@ -211,6 +225,8 @@ export default function UserManagement() {
         setErrors(emptyErrors);
       } catch (err: any) {
         toast.error(ApiService.handleAxiosError(err, 'Failed to update user'));
+      } finally {
+        setSubmitting(false);
       }
     } else {
       try {
@@ -232,13 +248,14 @@ export default function UserManagement() {
         });
         toast.success('User created!');
         fetchUsers();
+        setForm(emptyForm);
+        setErrors(emptyErrors);
       } catch (err: any) {
         toast.error(ApiService.handleAxiosError(err, 'Failed to create user'));
-        return;
+      } finally {
+        setSubmitting(false);
       }
     }
-    setForm(emptyForm);
-    setErrors(emptyErrors);
   };
 
   const startEdit = (u: User) => {
@@ -338,7 +355,7 @@ export default function UserManagement() {
           </div>
 
           <div className="bg-card p-4 rounded-b-2xl">
-            <form onSubmit={handleSubmit} noValidate>
+            <form onSubmit={handleSubmit} noValidate autoComplete="off">
               <div className="grid grid-cols-1 md:grid-cols-2 gap-x-4 gap-y-3">
                 {/* Employee ID */}
                 <div className="space-y-1">
@@ -405,6 +422,7 @@ export default function UserManagement() {
                   <Input
                     type="email"
                     placeholder="e.g. john@cafe.com"
+                    autoComplete="off"
                     value={form.emp_mail}
                     onChange={(e) => setField("emp_mail", e.target.value)}
                     className={`h-9 bg-muted/20 text-sm transition-colors ${
@@ -438,6 +456,7 @@ export default function UserManagement() {
                     placeholder={
                       editing ? "Leave blank to keep current" : "Enter strong password"
                     }
+                    autoComplete="new-password"
                     value={form.password}
                     onChange={(e) => setField("password", e.target.value)}
                     className={`h-9 bg-muted/20 text-sm transition-colors ${
@@ -481,7 +500,7 @@ export default function UserManagement() {
                     <Shield className="w-3 h-3" />
                     Role *
                   </label>
-                  <div className="relative z-10">
+                  <div className="relative z-10" ref={roleDropRef}>
                     <button
                       type="button"
                       onClick={() => {
@@ -629,28 +648,83 @@ export default function UserManagement() {
 
               {/* Submit */}
               <div className="flex justify-end mt-4 pt-3 border-t border-border/40 pb-1">
-                <Button
+                <motion.button
                   type="submit"
-                  size="sm"
-                  className="text-white font-semibold px-6 shadow-lg"
+                  disabled={submitting}
+                  whileTap={!submitting ? { scale: 0.96 } : {}}
+                  whileHover={!submitting ? { scale: 1.03, boxShadow: editing ? "0 6px 24px hsl(262 83% 58% / 0.45)" : "0 6px 24px hsl(24 95% 53% / 0.45)" } : {}}
+                  transition={{ type: "spring", stiffness: 400, damping: 20 }}
+                  className="relative overflow-hidden flex items-center justify-center gap-2 h-9 px-6 rounded-xl text-sm font-semibold text-white shadow-lg min-w-[140px] disabled:cursor-not-allowed"
                   style={{
-                    background: editing
-                      ? "linear-gradient(135deg,hsl(262 83% 58%),hsl(291 64% 42%))"
-                      : "linear-gradient(135deg,hsl(24 95% 53%),hsl(43 96% 52%))",
+                    background: submitting
+                      ? editing
+                        ? "linear-gradient(135deg,hsl(262 83% 48%),hsl(291 64% 32%))"
+                        : "linear-gradient(135deg,hsl(24 95% 43%),hsl(43 96% 42%))"
+                      : editing
+                        ? "linear-gradient(135deg,hsl(262 83% 58%),hsl(291 64% 42%))"
+                        : "linear-gradient(135deg,hsl(24 95% 53%),hsl(43 96% 52%))",
                   }}
                 >
-                  {editing ? (
-                    <>
-                      <Pencil className="w-4 h-4 mr-2" />
-                      Update User
-                    </>
-                  ) : (
-                    <>
-                      <Plus className="w-4 h-4 mr-2" />
-                      Create User
-                    </>
+                  {/* shimmer sweep while loading */}
+                  {submitting && (
+                    <motion.span
+                      className="absolute inset-0 bg-gradient-to-r from-transparent via-white/20 to-transparent"
+                      initial={{ x: "-100%" }}
+                      animate={{ x: "100%" }}
+                      transition={{ repeat: Infinity, duration: 1.1, ease: "linear" }}
+                    />
                   )}
-                </Button>
+
+                  <AnimatePresence mode="wait" initial={false}>
+                    {submitting ? (
+                      <motion.span
+                        key="loading"
+                        initial={{ opacity: 0, scale: 0.8 }}
+                        animate={{ opacity: 1, scale: 1 }}
+                        exit={{ opacity: 0, scale: 0.8 }}
+                        transition={{ duration: 0.15 }}
+                        className="flex items-center gap-2"
+                      >
+                        {/* three bouncing dots */}
+                        <span className="flex items-center gap-[3px]">
+                          {[0, 1, 2].map((i) => (
+                            <motion.span
+                              key={i}
+                              className="w-1.5 h-1.5 rounded-full bg-white"
+                              animate={{ y: [0, -4, 0] }}
+                              transition={{ repeat: Infinity, duration: 0.7, delay: i * 0.15, ease: "easeInOut" }}
+                            />
+                          ))}
+                        </span>
+                        <span>{editing ? "Updating..." : "Creating..."}</span>
+                      </motion.span>
+                    ) : editing ? (
+                      <motion.span
+                        key="update"
+                        initial={{ opacity: 0, scale: 0.8 }}
+                        animate={{ opacity: 1, scale: 1 }}
+                        exit={{ opacity: 0, scale: 0.8 }}
+                        transition={{ duration: 0.15 }}
+                        className="flex items-center gap-2"
+                      >
+                        <Pencil className="w-4 h-4" />
+                        Update User
+                      </motion.span>
+                    ) : (
+                      <motion.span
+                        key="create"
+                        initial={{ opacity: 0, scale: 0.8 }}
+                        animate={{ opacity: 1, scale: 1 }}
+                        exit={{ opacity: 0, scale: 0.8 }}
+                        transition={{ duration: 0.15 }}
+                        className="flex items-center gap-2"
+                      >
+                        <Plus className="w-4 h-4" />
+                        Create User
+                      </motion.span>
+                    )}
+                  </AnimatePresence>
+                </motion.button>
               </div>
             </form>
           </div>

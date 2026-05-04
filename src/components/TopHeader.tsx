@@ -42,7 +42,7 @@ const roleBadgeStyle: Record<Role, string> = {
 const roleContextLine: Record<Role, string> = {
   "super-admin": "System status healthy",
   admin: "Pickup queue in progress",
-  user: "Reserve before 4:00 PM",
+  user: "Order pickup in progress",
 };
 
 interface ScanResult {

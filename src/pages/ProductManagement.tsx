@@ -22,7 +22,7 @@ const catMeta: Record<string, { pill: string; bar: string; emoji: string; bg: st
 const emptyForm = { name: '', price: '', category: '' as Product['category'], available: true, description: '' };
 const emptyErrors = { name: '', price: '', category: '', description: '', image: '' };
 
-const SHOW_LIMIT = 6;
+const SHOW_LIMIT = 4;
 
 export default function ProductManagement() {
   const { products, addProduct, updateProduct, deleteProduct } = useAppStore();
