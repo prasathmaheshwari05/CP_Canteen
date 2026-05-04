@@ -1,3 +1,3 @@
-# Welcome to your Lovable project
+# CP Canteen
 
-TODO: Document your project here
+Employee canteen food reservation and ordering system.
