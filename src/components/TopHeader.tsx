@@ -170,47 +170,39 @@ export function TopHeader({
               stopCamera();
               setScanning(true);
               const raw = code.data.trim();
-              let orderId = raw.split("/").pop() ?? raw;
+              // Parse order data directly from QR URL (contains items + total)
+              let orderId = "";
+              let qrItems: { name: string; quantity: number }[] = [];
+              let qrTotal = 0;
               try {
                 const url = new URL(raw);
-                orderId = url.searchParams.get("order_id") ?? orderId;
-              } catch {}
+                orderId = url.searchParams.get("order_id") ?? "";
+                const itemsParam = url.searchParams.get("items");
+                if (itemsParam) qrItems = JSON.parse(decodeURIComponent(itemsParam));
+                qrTotal = parseFloat(url.searchParams.get("total") ?? "0");
+              } catch {
+                orderId = raw.split("/").pop() ?? raw;
+              }
+              if (!orderId) {
+                setScanError("Invalid QR code.");
+                setScanning(false);
+                return;
+              }
               ApiService.get(`/api/admin/scan/${orderId}`)
-                .then(async (res) => {
+                .then((res) => {
                   const d = res.data;
-                  console.log("Scan response:", JSON.stringify(d));
-                  // fetch menu to resolve names
-                  let menuMap: Record<number, string> = {};
-                  try {
-                    const mRes = await ApiService.get("/api/today-menu");
-                    console.log(
-                      "Menu response:",
-                      JSON.stringify(mRes.data?.slice(0, 3)),
-                    );
-                    (mRes.data ?? []).forEach((m: any) => {
-                      menuMap[m.menu_id ?? m.id] = m.name;
-                    });
-                  } catch {}
                   if (d.status === "approved") {
                     setScanResult({
                       orderId: String(d.order_id ?? orderId),
-                      items: [],
-                      total: d.total_amount ?? 0,
+                      items: qrItems,
+                      total: qrTotal,
                       alreadyApproved: true,
                     });
                   } else {
                     setScanResult({
                       orderId: String(d.order_id ?? orderId),
-                      items:
-                        d.items?.map((it: any) => ({
-                          name:
-                            it.name ??
-                            it.menu_name ??
-                            menuMap[it.menu_id] ??
-                            `Item #${it.menu_id}`,
-                          quantity: it.quantity,
-                        })) ?? [],
-                      total: d.total_amount ?? 0,
+                      items: qrItems,
+                      total: qrTotal,
                     });
                   }
                 })
@@ -583,6 +575,12 @@ export function TopHeader({
                                 </span>
                               </div>
                             ))}
+                          </div>
+                          <div className="px-4 py-3 border-t border-white/10 flex items-center justify-between">
+                            <span className="text-xs text-muted-foreground font-medium">Total Amount</span>
+                            <span className="text-base font-bold" style={{ background: "linear-gradient(135deg,#f97316,#fbbf24)", WebkitBackgroundClip: "text", WebkitTextFillColor: "transparent" }}>
+                              ₹{scanResult.total}
+                            </span>
                           </div>
                         </div>
 

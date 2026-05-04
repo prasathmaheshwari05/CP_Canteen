@@ -138,8 +138,8 @@ export default function UserDashboard() {
   return (
     <div className="flex flex-col gap-4 p-2 pb-8">
       {/* Video Hero */}
-      <section className="relative rounded-3xl overflow-hidden bg-black shadow-[0_20px_60px_rgba(0,0,0,0.35)]">
-        <div className="relative h-[56vh] min-h-[360px] max-h-[620px] w-full">
+      <section className="relative rounded-2xl sm:rounded-3xl overflow-hidden bg-black shadow-[0_20px_60px_rgba(0,0,0,0.35)]">
+        <div className="relative w-full h-[38vh] min-h-[200px] max-h-[300px] sm:h-[50vh] sm:min-h-[300px] sm:max-h-[460px] md:h-[56vh] md:min-h-[380px] md:max-h-[620px]">
           <AnimatePresence mode="wait">
             <motion.video
               key={dashboardVideos[activeVideo].src}
@@ -156,38 +156,37 @@ export default function UserDashboard() {
             />
           </AnimatePresence>
 
-          <div className="absolute inset-0 bg-gradient-to-r from-black/70 via-black/35 to-black/45" />
-          <div className="absolute inset-0 bg-gradient-to-t from-black/65 via-transparent to-black/20" />
-
-          <div className="relative z-10 flex h-full flex-col justify-between p-4 sm:p-6">
+    <div className="absolute inset-0 bg-black/40" />
+    <div className="absolute inset-0 bg-gradient-to-t from-black/65 via-transparent to-black/20" />
+          <div className="relative z-10 flex h-full flex-col justify-between p-3 sm:p-5 md:p-6">
             <div className="flex flex-1 items-center">
-              <div className="max-w-lg">
+              <div className="max-w-xs sm:max-w-md md:max-w-lg">
                 <motion.p
                   key={dashboardVideos[activeVideo].src}
                   initial={{ opacity: 0, y: 8 }}
                   animate={{ opacity: 1, y: 0 }}
                   transition={{ duration: 0.35 }}
-                  className="text-xl font-bold tracking-tight text-white drop-shadow-md sm:text-3xl md:text-[2.4rem]"
+                  className="text-base font-bold tracking-tight text-white drop-shadow-md sm:text-2xl md:text-3xl lg:text-[2.4rem]"
                   style={{ fontFamily: "'Playfair Display', 'Georgia', serif" }}
                 >
-                  <span className="block mb-2 sm:mb-2.5">it’s not just</span>
-                  <span className="block mb-2 sm:mb-2.5">Food, It’s an</span>
+                  <span className="block mb-1 sm:mb-2">it’s not just</span>
+                  <span className="block mb-1 sm:mb-2">Food, It’s an</span>
                   <span className="block">Experience.</span>
                 </motion.p>
               </div>
             </div>
 
             <div className="flex items-center justify-between gap-3">
-              <div className="flex gap-2">
+              <div className="flex gap-1.5 sm:gap-2">
                 {dashboardVideos.map((video, index) => (
                   <button
                     key={video.src}
                     type="button"
                     onClick={() => setActiveVideo(index)}
-                    className={`h-2.5 rounded-full transition-all duration-300 ${
+                    className={`h-2 sm:h-2.5 rounded-full transition-all duration-300 ${
                       activeVideo === index
-                        ? "w-9 bg-orange-400"
-                        : "w-2.5 bg-white/55 hover:bg-white/90"
+                        ? "w-7 sm:w-9 bg-orange-400"
+                        : "w-2 sm:w-2.5 bg-white/55 hover:bg-white/90"
                     } focus:outline-none focus-visible:outline-none focus-visible:ring-0`}
                     aria-label={`Show clip ${index + 1}`}
                   />
