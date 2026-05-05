@@ -6,6 +6,7 @@ import { TooltipProvider } from "@/components/ui/tooltip";
 import { DashboardLayout } from "@/components/DashboardLayout";
 import { ThemeProvider } from "@/contexts/ThemeContext";
 import { useAppStore } from "@/store/appStore";
+import { useAuthSync } from "@/hooks/useAuthSync";
 import SuperAdminDashboard from "@/pages/SuperAdminDashboard";
 import AdminDashboard from "@/pages/AdminDashboard";
 import ProductManagement from "@/pages/ProductManagement";
@@ -15,6 +16,7 @@ import AdminOrders from "@/pages/AdminOrders";
 import UserDashboard from "@/pages/UserDashboard";
 import UserCart from "@/pages/UserCart";
 import MyBooking from "@/pages/MyBooking";
+import MyCart from "@/pages/MyCart";
 import Login from "@/pages/Login";
 import Signup from "@/pages/Signup";
 import NotFound from "./pages/NotFound.tsx";
@@ -24,6 +26,8 @@ const queryClient = new QueryClient();
 
 function AppRoutes() {
   const { currentRole } = useAppStore();
+  useAuthSync();
+
   const token = sessionStorage.getItem('access_token');
   const isAuth = !!token && !!currentRole;
 
@@ -60,6 +64,7 @@ function AppRoutes() {
                   <Route path="/order" element={<UserDashboard />} />
                   <Route path="/cart" element={<UserCart />} />
                   <Route path="/my-booking" element={<MyBooking />} />
+                  <Route path="/my-cart" element={<MyCart />} />
                   <Route path="*" element={<Navigate to="/" replace />} />
                 </>
               )}

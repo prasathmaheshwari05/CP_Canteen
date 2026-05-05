@@ -13,10 +13,12 @@ import {
   Sparkles,
   ChevronDown,
   ChevronUp,
+  ClipboardList,
 } from "lucide-react";
 import { useAppStore } from "@/store/appStore";
 import { toast } from "sonner";
 import ApiService from "@/api/apiServices";
+import { useNavigate } from "react-router-dom";
 
 const catEmojis: Record<string, string> = {
   Breakfast: "🌅",
@@ -37,8 +39,87 @@ function AnimatedPrice({ value }: { value: number }) {
   return <motion.span>{display}</motion.span>;
 }
 
+function MyOrdersCard() {
+  const [orders, setOrders] = useState<any[]>([]);
+  const [menu, setMenu] = useState<any[]>([]);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    Promise.all([
+      ApiService.get('/api/my-orders'),
+      ApiService.get('/api/menu'),
+    ]).then(([oRes, mRes]) => {
+      setOrders(oRes.data ?? []);
+      setMenu(mRes.data ?? []);
+    }).catch(() => {}).finally(() => setLoading(false));
+  }, []);
+
+  const getMenuName = (menuId: number) =>
+    menu.find(m => (m.menu_id ?? m.id) === menuId)?.name ?? `Item #${menuId}`;
+
+  return (
+    <div className="rounded-2xl border border-border/50 bg-card overflow-hidden">
+      <div className="flex items-center gap-2.5 px-5 py-4 border-b border-border/40">
+        <div className="w-7 h-7 rounded-lg bg-orange-500/15 flex items-center justify-center">
+          <ClipboardList className="w-4 h-4 text-orange-400" />
+        </div>
+        <p className="text-sm font-bold">My Orders</p>
+      </div>
+
+      {loading ? (
+        <div className="flex justify-center py-8">
+          <motion.div animate={{ rotate: 360 }} transition={{ repeat: Infinity, duration: 0.9, ease: 'linear' }}
+            className="w-6 h-6 border-2 border-orange-400/30 border-t-orange-400 rounded-full" />
+        </div>
+      ) : orders.length === 0 ? (
+        <div className="py-10 text-center text-sm text-muted-foreground">No orders yet.</div>
+      ) : (
+        <div className="overflow-x-auto">
+          <table className="w-full text-sm">
+            <thead>
+              <tr className="border-b border-border/40 text-xs text-muted-foreground">
+                <th className="text-left px-5 py-3 font-semibold">Order ID</th>
+                <th className="text-left px-5 py-3 font-semibold">Items</th>
+                <th className="text-left px-5 py-3 font-semibold">Date</th>
+                <th className="text-left px-5 py-3 font-semibold">Status</th>
+                <th className="text-right px-5 py-3 font-semibold">Total</th>
+              </tr>
+            </thead>
+            <tbody>
+              {orders.map((order, i) => (
+                <motion.tr key={order.id}
+                  initial={{ opacity: 0, y: 6 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: i * 0.04 }}
+                  className="border-b border-border/20 hover:bg-muted/30 transition-colors">
+                  <td className="px-5 py-3 font-semibold text-orange-400">#{order.id}</td>
+                  <td className="px-5 py-3 text-muted-foreground">
+                    {order.items?.map((it: any) => `${getMenuName(it.menu_id)} ×${it.quantity}`).join(', ')}
+                  </td>
+                  <td className="px-5 py-3 text-muted-foreground">
+                    {new Date(order.created_at).toLocaleDateString([], { day: '2-digit', month: 'short', year: 'numeric' })}
+                  </td>
+                  <td className="px-5 py-3">
+                    <span className={`text-[11px] font-semibold px-2 py-0.5 rounded-full border ${
+                      order.status === 'approved'
+                        ? 'bg-emerald-500/15 text-emerald-400 border-emerald-500/25'
+                        : order.status === 'pending'
+                        ? 'bg-amber-500/15 text-amber-400 border-amber-500/25'
+                        : 'bg-slate-500/15 text-slate-400 border-slate-500/25'
+                    }`}>{order.status}</span>
+                  </td>
+                  <td className="px-5 py-3 text-right font-bold">₹{order.total_amount}</td>
+                </motion.tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      )}
+    </div>
+  );
+}
+
 export default function UserDashboard() {
   const { addToCart, updateCartQty, cart, addMyOrder } = useAppStore();
+  const navigate = useNavigate();
   const [menuProducts, setMenuProducts] = useState<any[]>([]);
   const [menuLoading, setMenuLoading] = useState(true);
   const [activeVideo, setActiveVideo] = useState(0);
@@ -149,6 +230,7 @@ export default function UserDashboard() {
     setConfirmed(false);
     menuProducts.forEach((p) => updateCartQty(String(p.menu_id ?? p.id), 0));
     setShowBill(false);
+    navigate('/my-cart');
   };
 
   return (

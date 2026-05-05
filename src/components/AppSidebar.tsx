@@ -17,8 +17,10 @@ import {
   PanelLeftOpen,
   X,
   BookOpen,
+  ShoppingBag,
 } from "lucide-react";
 import { useAppStore, Role } from "@/store/appStore";
+import { broadcastLogout } from "@/hooks/useAuthSync";
 
 const roleMenus: Record<
   Role,
@@ -39,6 +41,7 @@ const roleMenus: Record<
   user: [
     { label: "Dashboard", icon: LayoutDashboard, path: "/" },
     { label: "My Booking", icon: BookOpen, path: "/my-booking" },
+    { label: "My Cart", icon: ShoppingBag, path: "/my-cart" },
   ],
 };
 
@@ -132,12 +135,13 @@ export function AppSidebar({
 }: AppSidebarProps) {
   const location = useLocation();
   const navigate = useNavigate();
-  const { currentRole, setCurrentUser } = useAppStore();
+  const { currentRole, clearAuth } = useAppStore();
 
   const handleLogout = () => {
-    sessionStorage.removeItem("access_token");
-    setCurrentUser(null);
-    navigate("/login");
+    sessionStorage.removeItem('access_token');
+    clearAuth();
+    broadcastLogout();
+    navigate('/login', { replace: true });
   };
   const items = roleMenus[currentRole] ?? [];
 

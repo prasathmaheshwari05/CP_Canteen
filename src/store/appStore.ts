@@ -48,6 +48,7 @@ interface AppState {
   setRole: (role: string) => void;
   currentUser: User | null;
   setCurrentUser: (user: User | null) => void;
+  clearAuth: () => void;
 
   products: Product[];
   addProduct: (product: Product) => void;
@@ -93,6 +94,9 @@ export const useAppStore = create<AppState>()(persist((set) => ({
   setRole: (role) => set({ currentRole: normalizeRole(role) }),
   currentUser: null,
   setCurrentUser: (user) => set({ currentUser: user }),
+  clearAuth: () => {
+    localStorage.removeItem('cafeai-store');
+  },
 
   products: [],
   addProduct: (product) => set((s) => ({ products: [...s.products, product] })),

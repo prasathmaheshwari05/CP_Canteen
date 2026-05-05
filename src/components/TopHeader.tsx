@@ -14,6 +14,7 @@ import {
 } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 import { useAppStore, Role } from "@/store/appStore";
+import { broadcastLogout } from "@/hooks/useAuthSync";
 import { ThemeToggle } from "@/components/ThemeToggle";
 import { motion, AnimatePresence } from "framer-motion";
 import jsQR from "jsqr";
@@ -63,7 +64,7 @@ export function TopHeader({
   onToggleCollapse,
   onMobileMenuOpen,
 }: TopHeaderProps) {
-  const { currentRole, currentUser } = useAppStore();
+  const { currentRole, currentUser, setCurrentUser, setRole, clearAuth } = useAppStore();
   const navigate = useNavigate();
 
   const [showScanner, setShowScanner] = useState(false);
@@ -373,7 +374,12 @@ export function TopHeader({
               </DropdownMenuItem>
               <DropdownMenuSeparator />
               <DropdownMenuItem
-                onClick={() => navigate("/login")}
+                onClick={() => {
+                  sessionStorage.removeItem('access_token');
+                  clearAuth();
+                  broadcastLogout();
+                  navigate('/login', { replace: true });
+                }}
                 className="cursor-pointer text-destructive hover:!text-white focus:text-white"
               >
                 <LogOut className="w-4 h-4 mr-2" /> Logout
