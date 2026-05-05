@@ -1,7 +1,7 @@
 from sqlalchemy import Column, Integer, String, Float, Boolean, ForeignKey, Date
 from app.db.session import Base
 from datetime import date
-from sqlalchemy.types import JSON
+from sqlalchemy.dialects.mysql import JSON
 from sqlalchemy import Column, DateTime
 from datetime import datetime
 from datetime import datetime
@@ -16,10 +16,11 @@ class User(Base):
 
     id = Column(Integer, primary_key=True, index=True)
     emp_id = Column(Integer, unique=True, index=True)
-    emp_name = Column(String)
-    emp_mail = Column(String, unique=True)
-    password = Column(String)
-    role = Column(String)
+    emp_name = Column(String(100))
+    emp_mail = Column(String(150), unique=True)
+    password = Column(String(255))
+    role = Column(String(50))
+    active_token = Column(String(500), nullable=True)
 
 
 # 🍽️ MENU TABLE
@@ -27,12 +28,12 @@ class Menu(Base):
     __tablename__ = "menu"
 
     id = Column(Integer, primary_key=True, index=True)
-    name = Column(String)
+    name = Column(String(150))
     price = Column(Float)
-    category = Column(String)  # breakfast/lunch/dinner
+    category = Column(String(50))
     available = Column(Boolean, default=True)
     images = Column(JSON)
-    description = Column(String)
+    description = Column(String(500))
 
 
 class TodayMenu(Base):
@@ -50,7 +51,7 @@ class Order(Base):
     id = Column(Integer, primary_key=True)
     user_id = Column(Integer, ForeignKey("users.id"))
     total_amount = Column(Float)
-    status = Column(String, default="pending")
+    status = Column(String(50), default="pending")
 
     created_at = Column(DateTime, default=lambda: datetime.now(IST))
 
@@ -71,7 +72,7 @@ class Payment(Base):
 
     id = Column(Integer, primary_key=True, index=True)
     order_id = Column(Integer)
-    razorpay_order_id = Column(String)
-    razorpay_payment_id = Column(String)
-    razorpay_signature = Column(String)
-    status = Column(String)
+    razorpay_order_id = Column(String(150))
+    razorpay_payment_id = Column(String(150))
+    razorpay_signature = Column(String(255))
+    status = Column(String(50))

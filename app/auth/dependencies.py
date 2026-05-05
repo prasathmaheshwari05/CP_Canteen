@@ -7,6 +7,7 @@ from app.db.dependency import get_db
 from app.db.models import User
 from app.auth.jwt_handler import SECRET_KEY, ALGORITHM
 from app.core.roles import ADMIN, USER, SUPERADMIN
+
 # from app.auth.dependencies import get_current_user
 
 # security = HTTPBearer()
@@ -108,6 +109,10 @@ def get_current_user(
 
     if user is None:
         raise HTTPException(status_code=401, detail="User not found")
+
+    # ✅ ADD THIS CHECK (VERY IMPORTANT)
+    if user.active_token != token:
+        raise HTTPException(status_code=401, detail="Session expired")
 
     return user
 

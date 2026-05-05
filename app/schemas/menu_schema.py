@@ -25,4 +25,4 @@ class MenuResponse(BaseModel):
     images: List[str]
     description: str
     class Config:
-        orm_mode = True
+        from_attributes = True

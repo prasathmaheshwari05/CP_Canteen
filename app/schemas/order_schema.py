@@ -2,10 +2,17 @@ from pydantic import BaseModel
 from typing import List
 from datetime import datetime
 
+from typing import Optional
+
 # ✅ ADD THIS (MISSING)
 class OrderItemCreate(BaseModel):
     menu_id: int
     quantity: int
+
+
+class OrderPut(BaseModel):
+    items: List[OrderItemCreate]
+    status: Optional[str] = None
 
 
 class OrderItemResponse(BaseModel):

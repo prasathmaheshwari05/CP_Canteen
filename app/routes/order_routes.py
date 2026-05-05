@@ -6,8 +6,10 @@ from app.auth.dependencies import get_current_user
 from app.db.models import Order, OrderItem, Menu, User
 from app.schemas.order_schema import OrderCreate
 from typing import List
-from app.schemas.order_schema import OrderResponse
+from app.schemas.order_schema import OrderResponse, OrderPut
 from app.auth.dependencies import admin_required
+from datetime import date
+from datetime import datetime
 
 router = APIRouter()  # 🔥 THIS WAS MISSING
 
@@ -20,6 +22,45 @@ def create_order(
 ):
     if not request.items:
         raise HTTPException(status_code=400, detail="No items selected")
+    today = date.today()
+
+    # ✅ Step 1: get categories from request
+    requested_categories = set()
+
+    for item in request.items:
+        menu = db.query(Menu).filter(Menu.id == item.menu_id).first()
+        if not menu:
+            raise HTTPException(
+                status_code=404, detail=f"Menu ID {item.menu_id} not found"
+            )
+        requested_categories.add(menu.category)
+
+    # ✅ Step 2: get today's orders for this user
+    start = datetime.combine(today, datetime.min.time())
+    end = datetime.combine(today, datetime.max.time())
+
+    existing_orders = (
+        db.query(Order)
+        .filter(
+            Order.user_id == current_user.id,
+            Order.created_at >= start,
+            Order.created_at <= end,
+        )
+        .all()
+    )
+
+    # ✅ Step 3: check conflict
+    for order in existing_orders:
+        items = db.query(OrderItem).filter(OrderItem.order_id == order.id).all()
+
+        for item in items:
+            menu = db.query(Menu).filter(Menu.id == item.menu_id).first()
+
+            if menu and menu.category in requested_categories:
+                raise HTTPException(
+                    status_code=400,
+                    detail=f"You already ordered {menu.category} today",
+                )
 
     total_amount = 0
 
@@ -62,6 +103,73 @@ def create_order(
         "created_at": new_order.created_at,
         "items": items,
         "qr_code": qr_path,
+    }
+
+
+@router.put("/order/{order_id}")
+def replace_order(
+    order_id: int,
+    request: OrderPut,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    order = db.query(Order).filter(Order.id == order_id).first()
+
+    if not order:
+        raise HTTPException(status_code=404, detail="Order not found")
+
+    if order.user_id != current_user.id:
+        raise HTTPException(status_code=403, detail="Not allowed")
+
+    if order.status not in ["pending", "confirmed"]:
+        raise HTTPException(status_code=400, detail="Order cannot be modified")
+    # 🔥 delete old items
+    db.query(OrderItem).filter(OrderItem.order_id == order_id).delete()
+
+    total_amount = 0
+
+    for item in request.items:
+        menu = db.query(Menu).filter(Menu.id == item.menu_id).first()
+
+        if not menu:
+            raise HTTPException(
+                status_code=404, detail=f"Menu {item.menu_id} not found"
+            )
+
+        if not menu.available:
+            raise HTTPException(status_code=400, detail=f"{menu.name} not available")
+
+        total_amount += menu.price * item.quantity
+
+        db.add(
+            OrderItem(
+                order_id=order_id,
+                menu_id=item.menu_id,
+                quantity=item.quantity,
+            )
+        )
+
+    order.total_amount = total_amount
+    if request.status is not None:
+        order.status = request.status
+
+    db.commit()
+
+    # ✅ 🔥 REGENERATE QR CODE
+    qr_path = generate_qr(order.id)
+
+    db.refresh(order)
+
+    items = db.query(OrderItem).filter(OrderItem.order_id == order.id).all()
+
+    return {
+        "id": order.id,
+        "user_id": order.user_id,
+        "total_amount": order.total_amount,
+        "status": order.status,
+        "created_at": order.created_at,
+        "items": items,
+        "qr_code": qr_path,  # ✅ return new QR
     }
 
 
@@ -108,7 +216,7 @@ def get_my_orders(
                 "user_id": order.user_id,
                 "total_amount": order.total_amount,
                 "created_at": order.created_at,
-                "status": order.status,
+                "status": order.status or "pending",
                 "items": items,
                 "qr_code": f"qrcodes/order_{order.id}.png",
             }
@@ -134,7 +242,7 @@ def get_all_orders(
                 "user_id": order.user_id,
                 "total_amount": order.total_amount,
                 "created_at": order.created_at,
-                "status": order.status,
+                "status": order.status or "pending",
                 "items": items,
                 "qr_code": f"qrcodes/order_{order.id}.png",
             }

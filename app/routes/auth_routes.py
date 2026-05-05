@@ -44,8 +44,6 @@ def register(user: UserCreate, db: Session = Depends(get_db)):
     return {"message": "User created successfully"}
 
 
-
-
 # ✅ LOGIN
 @router.post("/login")
 def login(user: UserLogin, db: Session = Depends(get_db)):
@@ -57,5 +55,9 @@ def login(user: UserLogin, db: Session = Depends(get_db)):
 
     token = create_access_token({"sub": str(db_user.emp_id), "role": db_user.role})
 
-    return {"access_token": token, "token_type": "bearer", "role": db_user.role}
 
+    # ✅ SAVE TOKEN IN DB
+    db_user.active_token = token
+    db.commit()
+
+    return {"access_token": token, "token_type": "bearer", "role": db_user.role}
