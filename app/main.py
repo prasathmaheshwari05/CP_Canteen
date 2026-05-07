@@ -12,6 +12,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 import os
 from app.routes import auth_routes, role_routes, user_routes
+from app.routes import status_routes
 
 os.makedirs("qrcodes", exist_ok=True)
 app = FastAPI()
@@ -50,6 +51,7 @@ app.include_router(order_routes.router, prefix="/api", tags=["Order"])
 app.include_router(today_menu_routes.router, prefix="/api", tags=["Today Menu"])
 # app.include_router(auth_routes.router, dependencies=[Depends(get_current_user)])
 app.mount("/qrcodes", StaticFiles(directory="qrcodes"), name="qrcodes")
+app.include_router(status_routes.router, prefix="/api", tags=["Status"])
 
 
 @app.get("/")

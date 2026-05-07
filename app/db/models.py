@@ -2,8 +2,7 @@ from sqlalchemy import Column, Integer, String, Float, Boolean, ForeignKey, Date
 from app.db.session import Base
 from datetime import date
 from sqlalchemy.dialects.mysql import JSON
-from sqlalchemy import Column, DateTime
-from datetime import datetime
+from sqlalchemy import Column, DateTime, Boolean
 from datetime import datetime
 import pytz
 
@@ -55,6 +54,9 @@ class Order(Base):
 
     created_at = Column(DateTime, default=lambda: datetime.now(IST))
 
+    qr_code = Column(String(255))  # ✅ ADD THIS
+    order_date = Column(Date)
+
 
 # 🧾 ORDER ITEMS
 class OrderItem(Base):
@@ -76,3 +78,12 @@ class Payment(Base):
     razorpay_payment_id = Column(String(150))
     razorpay_signature = Column(String(255))
     status = Column(String(50))
+
+
+# 📌 STATUS TABLE
+class Status(Base):
+    __tablename__ = "status"
+
+    id = Column(Integer, primary_key=True, index=True)
+    status_name = Column(String(100), unique=True)
+    type = Column(String(100))

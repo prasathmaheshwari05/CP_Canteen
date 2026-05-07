@@ -14,6 +14,14 @@ from datetime import datetime
 router = APIRouter()  # 🔥 THIS WAS MISSING
 
 
+# timing concept
+
+from datetime import time, timedelta
+import pytz
+
+IST = pytz.timezone("Asia/Kolkata")
+
+
 @router.post("/order", response_model=OrderResponse)
 def create_order(
     request: OrderCreate,
@@ -35,6 +43,44 @@ def create_order(
             )
         requested_categories.add(menu.category)
 
+    today = date.today()
+    now = datetime.now(pytz.utc).astimezone(IST)
+    current_time = now.time()
+
+    # normalize categories
+    normalized_categories = {c.strip().lower() for c in requested_categories}
+
+    # ❌ prevent mixing
+    if len(normalized_categories) > 1:
+        raise HTTPException(
+            status_code=400,
+            detail="You cannot order Lunch and Dinner together",
+        )
+
+    category = list(normalized_categories)[0]
+
+    # ✅ ADD HERE ↓↓↓
+
+    if category == "lunch":
+        order_date = today + timedelta(days=1)
+
+        if not (time(10, 0) <= current_time <= time(22, 0)):
+            raise HTTPException(
+                status_code=400,
+                detail="Lunch can be ordered only between 10 AM and 10 PM",
+            )
+
+    elif category == "dinner":
+        order_date = today
+
+        if not (time(9, 0) <= current_time <= time(16, 0)):
+            raise HTTPException(
+                status_code=400,
+                detail="Dinner can be ordered only between 9 AM and 4 PM",
+            )
+
+    else:
+        raise HTTPException(status_code=400, detail="Invalid category")
     # ✅ Step 2: get today's orders for this user
     start = datetime.combine(today, datetime.min.time())
     end = datetime.combine(today, datetime.max.time())
@@ -43,8 +89,8 @@ def create_order(
         db.query(Order)
         .filter(
             Order.user_id == current_user.id,
-            Order.created_at >= start,
-            Order.created_at <= end,
+            Order.order_date == order_date,
+            # Order.created_at <= end,
         )
         .all()
     )
@@ -56,15 +102,15 @@ def create_order(
         for item in items:
             menu = db.query(Menu).filter(Menu.id == item.menu_id).first()
 
-            if menu and menu.category in requested_categories:
+            if menu and menu.category.strip().lower() in normalized_categories:
                 raise HTTPException(
                     status_code=400,
-                    detail=f"You already ordered {menu.category} today",
+                    detail=f"You already ordered {menu.category} for this date",
                 )
 
     total_amount = 0
 
-    new_order = Order(user_id=current_user.id, status="pending")
+    new_order = Order(user_id=current_user.id, status="pending", order_date=order_date)
     # new_order = Order(user_id=current_user.emp_id, status="pending")
     # new_order = Order(user_id=1, status="pending")
     db.add(new_order)
@@ -92,8 +138,15 @@ def create_order(
         db.add(order_item)
 
     new_order.total_amount = total_amount
-    db.commit()
+
+    # ✅ generate qr
     qr_path = generate_qr(new_order.id)
+
+    # ✅ save qr path into DB
+    new_order.qr_code = qr_path
+
+    db.commit()
+    db.refresh(new_order)
     items = db.query(OrderItem).filter(OrderItem.order_id == new_order.id).all()
     return {
         "id": new_order.id,
@@ -218,7 +271,7 @@ def get_my_orders(
                 "created_at": order.created_at,
                 "status": order.status or "pending",
                 "items": items,
-                "qr_code": f"qrcodes/order_{order.id}.png",
+                "qr_code": order.qr_code,
             }
         )
 
@@ -244,7 +297,7 @@ def get_all_orders(
                 "created_at": order.created_at,
                 "status": order.status or "pending",
                 "items": items,
-                "qr_code": f"qrcodes/order_{order.id}.png",
+                "qr_code": order.qr_code,
             }
         )
 
@@ -286,22 +339,12 @@ def update_order_status(
     return {"message": "Order status updated"}
 
 
-import qrcode
-import os
-
-
 def generate_qr(order_id: int):
-    data = (
+    qr_url = (
         f"https://genetics-granite-champion.ngrok-free.dev/api/public/order/{order_id}"
     )
 
-    os.makedirs("qrcodes", exist_ok=True)
-    file_path = f"qrcodes/order_{order_id}.png"
-
-    img = qrcode.make(data)
-    img.save(file_path)
-
-    return file_path
+    return qr_url
 
 
 @router.get("/public/order/{order_id}")

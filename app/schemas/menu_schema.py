@@ -1,6 +1,7 @@
 from pydantic import BaseModel
 from typing import List
 
+
 class MenuCreate(BaseModel):
     name: str
     price: float
@@ -9,6 +10,7 @@ class MenuCreate(BaseModel):
     images: List[str]
     description: str
 
+
 class MenuUpdate(BaseModel):
     name: str
     price: float
@@ -16,6 +18,8 @@ class MenuUpdate(BaseModel):
     available: bool
     images: List[str]
     description: str
+
+
 class MenuResponse(BaseModel):
     id: int
     name: str
@@ -24,5 +28,6 @@ class MenuResponse(BaseModel):
     available: bool
     images: List[str]
     description: str
+
     class Config:
         from_attributes = True
