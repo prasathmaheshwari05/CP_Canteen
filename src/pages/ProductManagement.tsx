@@ -1,4 +1,5 @@
 import { useState, useRef, useEffect, useCallback } from 'react';
+import { createPortal } from 'react-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
   Plus, Pencil, Trash2, Search, ImagePlus, X, Upload,
@@ -6,7 +7,6 @@ import {
 } from 'lucide-react';
 import { useAppStore, Product } from '@/store/appStore';
 import { Input } from '@/components/ui/input';
-import { Button } from '@/components/ui/button';
 import { Switch } from '@/components/ui/switch';
 import { toast } from 'sonner';
 import ApiService from '@/api/apiServices';
@@ -32,9 +32,13 @@ export default function ProductManagement() {
   const [filterCat, setFilterCat]       = useState('All');
   const [editing, setEditing]           = useState<Product | null>(null);
   const [imagePreview, setImagePreview] = useState<string | null>(null);
+  const [imageFileName, setImageFileName] = useState<string | null>(null);
   const [form, setForm]                 = useState(emptyForm);
   const [errors, setErrors]             = useState(emptyErrors);
   const [showAll, setShowAll]           = useState(false);
+  const [submitting, setSubmitting]     = useState(false);
+  const [deleteTarget, setDeleteTarget] = useState<Product | null>(null);
+  const [deleting, setDeleting]         = useState(false);
   const fileInputRef                    = useRef<HTMLInputElement>(null);
   const formRef                         = useRef<HTMLDivElement>(null);
 
@@ -121,10 +125,43 @@ export default function ProductManagement() {
     return valid;
   };
 
+  // Jaro-Winkler similarity (0 = no match, 1 = identical)
+  const jaroWinkler = (a: string, b: string): number => {
+    a = a.toLowerCase(); b = b.toLowerCase();
+    if (a === b) return 1;
+    const matchDist = Math.floor(Math.max(a.length, b.length) / 2) - 1;
+    const aMatches = Array(a.length).fill(false);
+    const bMatches = Array(b.length).fill(false);
+    let matches = 0, transpositions = 0;
+    for (let i = 0; i < a.length; i++) {
+      const start = Math.max(0, i - matchDist);
+      const end = Math.min(i + matchDist + 1, b.length);
+      for (let j = start; j < end; j++) {
+        if (bMatches[j] || a[i] !== b[j]) continue;
+        aMatches[i] = bMatches[j] = true; matches++; break;
+      }
+    }
+    if (!matches) return 0;
+    let k = 0;
+    for (let i = 0; i < a.length; i++) {
+      if (!aMatches[i]) continue;
+      while (!bMatches[k]) k++;
+      if (a[i] !== b[k]) transpositions++;
+      k++;
+    }
+    const jaro = (matches / a.length + matches / b.length + (matches - transpositions / 2) / matches) / 3;
+    let prefix = 0;
+    for (let i = 0; i < Math.min(4, a.length, b.length); i++) {
+      if (a[i] === b[i]) prefix++; else break;
+    }
+    return jaro + prefix * 0.1 * (1 - jaro);
+  };
+
   const handleImageUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
     if (file.size > 5 * 1024 * 1024) { toast.error('Image must be under 5MB'); return; }
+    setImageFileName(file.name);
     const reader = new FileReader();
     reader.onloadend = () => setImagePreview(reader.result as string);
     reader.readAsDataURL(file);
@@ -135,6 +172,22 @@ export default function ProductManagement() {
     e.preventDefault();
     if (!validate()) return;
 
+    // Duplicate product check for new products
+    if (!editing) {
+      const nameDuplicate = apiProducts.find(
+        p => jaroWinkler(p.name.trim(), form.name.trim()) >= 0.92
+      );
+      const imgDuplicate = imagePreview
+        ? apiProducts.find(p => p.images?.[0] === imagePreview)
+        : null;
+
+      if (nameDuplicate || imgDuplicate) {
+        toast.error('This product already exists. Please try adding a different product.');
+        return;
+      }
+    }
+
+    setSubmitting(true);
     const payload = {
       name: form.name.trim(),
       price: Number(form.price),
@@ -149,13 +202,14 @@ export default function ProductManagement() {
         await ApiService.put(`/api/menu/${editing.id}`, payload);
         updateProduct(editing.id, payload);
         toast.success('Product updated!');
-        await fetchMenuItems(); // refresh list from API
+        await fetchMenuItems();
+        setEditing(null);
       } catch (err) {
         const msg = ApiService.handleAxiosError(err, 'Failed to update product');
         toast.error(msg);
-        return;
+      } finally {
+        setSubmitting(false);
       }
-      setEditing(null);
     } else {
       try {
         const res = await ApiService.post('/api/menu', payload);
@@ -170,17 +224,23 @@ export default function ProductManagement() {
           description: data.description ?? '',
         });
         toast.success('Product added successfully!');
-        await fetchMenuItems(); // refresh list from API
-      } catch (err) {
-        const msg = ApiService.handleAxiosError(err, 'Failed to add product');
-        toast.error(msg);
-        return;
+        await fetchMenuItems();
+      } catch (err: any) {
+        // Handle duplicate product from API (e.g. 409 Conflict)
+        if (err?.response?.status === 409) {
+          toast.error(`"${form.name.trim()}" already exists. Duplicate products are not allowed.`);
+        } else {
+          toast.error(ApiService.handleAxiosError(err, 'Failed to add product'));
+        }
+      } finally {
+        setSubmitting(false);
       }
     }
 
     setForm(emptyForm);
     setErrors(emptyErrors);
     setImagePreview(null);
+    setImageFileName(null);
   };
 
   const startEdit = (p: Product) => {
@@ -191,7 +251,7 @@ export default function ProductManagement() {
     formRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' });
   };
 
-  const cancelEdit = () => { setEditing(null); setForm(emptyForm); setErrors({ name: '', price: '', category: '', description: '', image: '' }); setImagePreview(null); };
+  const cancelEdit = () => { setEditing(null); setForm(emptyForm); setErrors({ name: '', price: '', category: '', description: '', image: '' }); setImagePreview(null); setImageFileName(null); };
 
   const setField = (key: keyof typeof form, val: string | boolean) => {
     setForm(f => ({ ...f, [key]: val }));
@@ -257,7 +317,7 @@ export default function ProductManagement() {
                 </div>
                 {errors.image && <p className="text-[10px] text-red-400 flex items-center gap-1"><X className="w-3 h-3" />{errors.image}</p>}
                 {imagePreview && (
-                  <button type="button" onClick={() => { setImagePreview(null); setErrors(er => ({ ...er, image: '' })); }}
+                  <button type="button" onClick={() => { setImagePreview(null); setImageFileName(null); setErrors(er => ({ ...er, image: '' })); }}
                     className="text-[10px] text-muted-foreground hover:text-red-400 transition-colors flex items-center gap-1">
                     <X className="w-3 h-3" /> Remove image
                   </button>
@@ -318,12 +378,80 @@ export default function ProductManagement() {
                 </div>
 
                 <div className="md:col-span-2 flex justify-end pt-1">
-                  <Button type="submit" className="h-10 px-8 text-white font-semibold text-sm shadow-lg"
-                    style={{ background: editing ? 'linear-gradient(135deg,hsl(262 83% 58%),hsl(291 64% 42%))' : 'linear-gradient(135deg,hsl(24 95% 53%),hsl(43 96% 52%))' }}>
-                    {editing
-                      ? <><Pencil className="w-4 h-4 mr-2" />Update Product</>
-                      : <><Sparkles className="w-4 h-4 mr-2" />Add Product</>}
-                  </Button>
+                  <motion.button
+                    type="submit"
+                    disabled={submitting}
+                    whileTap={!submitting ? { scale: 0.96 } : {}}
+                    whileHover={!submitting ? { scale: 1.03, boxShadow: editing ? '0 6px 24px hsl(262 83% 58% / 0.45)' : '0 6px 24px hsl(24 95% 53% / 0.45)' } : {}}
+                    transition={{ type: 'spring', stiffness: 400, damping: 20 }}
+                    className="relative overflow-hidden flex items-center justify-center gap-2 h-10 px-8 rounded-xl text-sm font-semibold text-white shadow-lg min-w-[150px] disabled:cursor-not-allowed"
+                    style={{
+                      background: submitting
+                        ? editing
+                          ? 'linear-gradient(135deg,hsl(262 83% 48%),hsl(291 64% 32%))'
+                          : 'linear-gradient(135deg,hsl(24 95% 43%),hsl(43 96% 42%))'
+                        : editing
+                          ? 'linear-gradient(135deg,hsl(262 83% 58%),hsl(291 64% 42%))'
+                          : 'linear-gradient(135deg,hsl(24 95% 53%),hsl(43 96% 52%))',
+                    }}
+                  >
+                    {submitting && (
+                      <motion.span
+                        className="absolute inset-0 bg-gradient-to-r from-transparent via-white/20 to-transparent"
+                        initial={{ x: '-100%' }}
+                        animate={{ x: '100%' }}
+                        transition={{ repeat: Infinity, duration: 1.1, ease: 'linear' }}
+                      />
+                    )}
+                    <AnimatePresence mode="wait" initial={false}>
+                      {submitting ? (
+                        <motion.span
+                          key="loading"
+                          initial={{ opacity: 0, scale: 0.8 }}
+                          animate={{ opacity: 1, scale: 1 }}
+                          exit={{ opacity: 0, scale: 0.8 }}
+                          transition={{ duration: 0.15 }}
+                          className="flex items-center gap-2"
+                        >
+                          <span className="flex items-center gap-[3px]">
+                            {[0, 1, 2].map((i) => (
+                              <motion.span
+                                key={i}
+                                className="w-1.5 h-1.5 rounded-full bg-white"
+                                animate={{ y: [0, -4, 0] }}
+                                transition={{ repeat: Infinity, duration: 0.7, delay: i * 0.15, ease: 'easeInOut' }}
+                              />
+                            ))}
+                          </span>
+                          <span>{editing ? 'Updating...' : 'Adding...'}</span>
+                        </motion.span>
+                      ) : editing ? (
+                        <motion.span
+                          key="update"
+                          initial={{ opacity: 0, scale: 0.8 }}
+                          animate={{ opacity: 1, scale: 1 }}
+                          exit={{ opacity: 0, scale: 0.8 }}
+                          transition={{ duration: 0.15 }}
+                          className="flex items-center gap-2"
+                        >
+                          <Pencil className="w-4 h-4" />
+                          Update Product
+                        </motion.span>
+                      ) : (
+                        <motion.span
+                          key="add"
+                          initial={{ opacity: 0, scale: 0.8 }}
+                          animate={{ opacity: 1, scale: 1 }}
+                          exit={{ opacity: 0, scale: 0.8 }}
+                          transition={{ duration: 0.15 }}
+                          className="flex items-center gap-2"
+                        >
+                          <Sparkles className="w-4 h-4" />
+                          Add Product
+                        </motion.span>
+                      )}
+                    </AnimatePresence>
+                  </motion.button>
                 </div>
               </div>
             </div>
@@ -368,50 +496,51 @@ export default function ProductManagement() {
               <motion.div key={p.id} layout
                 initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }}
                 exit={{ opacity: 0, scale: 0.95 }} transition={{ delay: i * 0.04 }}
-                className="bg-card rounded-2xl border border-border/60 shadow-sm hover:shadow-md transition-shadow duration-300 overflow-hidden"
+                whileHover={{ y: -3, boxShadow: '0 12px 32px rgba(0,0,0,0.12)' }}
+                className="bg-card rounded-2xl border border-border/60 shadow-sm transition-all duration-300 overflow-hidden flex flex-col group"
               >
-                {/* Image area */}
-                <div className="h-36 bg-muted/40 flex items-center justify-center overflow-hidden">
-                  {p.images?.[0]
-                    ? <img src={p.images[0]} alt={p.name} className="w-full h-full object-cover" />
-                    : <span className="text-6xl">{meta?.emoji}</span>
-                  }
+                {/* Category color bar */}
+                <div className={`h-1 w-full ${meta?.bar}`} />
+
+                {/* Image area — object-contain so full image is always visible */}
+                <div className={`relative h-40 flex items-center justify-center overflow-hidden ${meta?.bg} dark:bg-muted/30`}>
+                  {p.images?.[0] ? (
+                    <img
+                      src={p.images[0]}
+                      alt={p.name}
+                      className="w-full h-35 object-contain p-2 transition-transform duration-300 group-hover:scale-105"
+                    />
+                  ) : (
+                    <span className="text-6xl">{meta?.emoji}</span>
+                  )}
+                  {/* Availability badge */}
+                  
                 </div>
 
-                <div className="p-4">
-                  {/* Name + category */}
-                  <div className="flex items-center justify-between gap-2 mb-1">
+                <div className="p-4 flex flex-col flex-1">
+                  {/* Name + category pill */}
+                  <div className="flex items-start justify-between gap-2 mb-1">
                     <h4 className="font-bold text-sm leading-snug">{p.name}</h4>
                     <span className={`shrink-0 text-[10px] font-semibold px-2 py-0.5 rounded-full border ${meta?.pill}`}>
-                      {p.category}
+                      {meta?.emoji} {p.category}
                     </span>
                   </div>
 
                   {/* Description */}
                   {p.description && (
-                    <p className="text-xs text-muted-foreground line-clamp-1 mb-3">{p.description}</p>
+                    <p className="text-xs text-muted-foreground line-clamp-2 mb-3 flex-1">{p.description}</p>
                   )}
 
                   {/* Price + actions */}
-                  <div className="flex items-center justify-between mt-2">
-                    <p className="text-lg font-bold text-orange-500">₹{p.price}</p>
+                  <div className="flex items-center justify-between mt-auto pt-2 border-t border-border/40">
+                    <p className="text-base font-extrabold text-orange-500">₹{p.price}</p>
                     <div className="flex gap-1.5">
                       <button onClick={() => startEdit(p)}
-                        className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-[10px] font-semibold bg-orange-50 text-orange-500 border border-orange-200 hover:bg-orange-100 transition-colors">
+                        className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-[10px] font-semibold bg-orange-50 text-orange-500 border border-orange-200 hover:bg-orange-500 hover:text-white transition-all duration-200">
                         <Pencil className="w-3 h-3" /> Edit
                       </button>
-                      <button onClick={async () => {
-                          try {
-                            await ApiService.delete(`/api/menu/${p.id}`);
-                            deleteProduct(p.id);
-                            await fetchMenuItems();
-                            toast.success('Product deleted!');
-                          } catch (err) {
-                            const msg = ApiService.handleAxiosError(err, 'Failed to delete product');
-                            toast.error(msg);
-                          }
-                        }}
-                        className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-[10px] font-semibold bg-red-50 text-red-500 border border-red-200 hover:bg-red-100 transition-colors">
+                      <button onClick={() => setDeleteTarget(p)}
+                        className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-[10px] font-semibold bg-red-50 text-red-500 border border-red-200 hover:bg-red-500 hover:text-white transition-all duration-200">
                         <Trash2 className="w-3 h-3" /> Delete
                       </button>
                     </div>
@@ -422,6 +551,56 @@ export default function ProductManagement() {
           })}
         </AnimatePresence>
       </div>
+
+      {/* ── Delete Confirmation Dialog ── */}
+      {deleteTarget && createPortal(
+        <div className="fixed inset-0 z-[9999] flex items-center justify-center">
+          <div className="absolute inset-0 bg-black/60" onClick={() => { if (!deleting) setDeleteTarget(null); }} />
+          <div className="relative bg-background border border-border rounded-2xl shadow-2xl w-full max-w-sm mx-4 p-6 flex flex-col items-center gap-4">
+            <div className="w-14 h-14 rounded-full bg-red-100 flex items-center justify-center">
+              <Trash2 className="w-6 h-6 text-red-500" />
+            </div>
+            <div className="text-center space-y-1">
+              <h3 className="text-base font-bold">Delete Product?</h3>
+              <p className="text-sm text-muted-foreground">
+                Are you sure you want to delete{' '}
+                <span className="font-semibold text-foreground">"{deleteTarget.name}"</span>?{' '}
+                This action cannot be undone.
+              </p>
+            </div>
+            <div className="flex gap-3 w-full pt-1">
+              <button
+                disabled={deleting}
+                onClick={() => setDeleteTarget(null)}
+                className="flex-1 h-10 rounded-xl border border-border text-sm font-semibold hover:bg-muted/60 transition-colors disabled:opacity-50">
+                Cancel
+              </button>
+              <button
+                disabled={deleting}
+                onClick={async () => {
+                  setDeleting(true);
+                  try {
+                    await ApiService.delete(`/api/menu/${deleteTarget.id}`);
+                    deleteProduct(deleteTarget.id);
+                    await fetchMenuItems();
+                    toast.success('Product deleted!');
+                    setDeleteTarget(null);
+                  } catch (err) {
+                    toast.error(ApiService.handleAxiosError(err, 'Failed to delete product'));
+                  } finally {
+                    setDeleting(false);
+                  }
+                }}
+                className="flex-1 h-10 rounded-xl text-sm font-semibold text-white bg-red-500 hover:bg-red-600 disabled:opacity-60 disabled:cursor-not-allowed transition-colors inline-flex items-center justify-center gap-2">
+                {deleting
+                  ? <><span className="w-4 h-4 border-2 border-white/40 border-t-white rounded-full animate-spin" /> Deleting...</>
+                  : <><Trash2 className="w-4 h-4" /> Delete</>
+                }
+              </button>
+            </div>
+          </div>
+        </div>
+      , document.body)}
 
       {/* ── Show More / Less ── */}
       {hasMore && (

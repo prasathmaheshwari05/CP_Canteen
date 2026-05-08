@@ -17,7 +17,6 @@ import {
   PanelLeftOpen,
   X,
   BookOpen,
-  ShoppingBag,
 } from "lucide-react";
 import { useAppStore, Role } from "@/store/appStore";
 import { broadcastLogout } from "@/hooks/useAuthSync";
@@ -41,7 +40,6 @@ const roleMenus: Record<
   user: [
     { label: "Dashboard", icon: LayoutDashboard, path: "/" },
     { label: "My Booking", icon: BookOpen, path: "/my-booking" },
-    { label: "My Cart", icon: ShoppingBag, path: "/my-cart" },
   ],
 };
 

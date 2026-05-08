@@ -1,6 +1,6 @@
-import { useState, useEffect } from 'react';
-import { motion } from 'framer-motion';
-import { Send, ChevronDown, ChevronUp } from 'lucide-react';
+import { useState, useEffect, useRef } from 'react';
+import { motion, AnimatePresence } from 'framer-motion';
+import { Send, ChevronDown, ChevronUp, Search, X } from 'lucide-react';
 import { useAppStore } from '@/store/appStore';
 import { Badge } from '@/components/ui/badge';
 import { toast } from 'sonner';
@@ -90,6 +90,35 @@ export default function AdminMenuManagement() {
   const [showAllMap, setShowAllMap] = useState<Record<string, boolean>>({});
   const toggleShowAll = (cat: string) => setShowAllMap(prev => ({ ...prev, [cat]: !prev[cat] }));
 
+  const [search, setSearch]         = useState('');
+  const [filterCat, setFilterCat]   = useState('All');
+  const [filterStatus, setFilterStatus] = useState<'all' | 'added' | 'not-added'>('all');
+  const searchRef = useRef<HTMLInputElement>(null);
+
+  // Apply search + category + status filters across all products
+  const getFilteredItems = (items: any[]) =>
+    items.filter(p => {
+      const matchSearch = !search.trim() || p.name.toLowerCase().includes(search.toLowerCase());
+      const matchStatus =
+        filterStatus === 'all' ? true :
+        filterStatus === 'added' ? selected.has(p.id) :
+        !selected.has(p.id);
+      return matchSearch && matchStatus;
+    });
+
+  const filteredGrouped = sortedCategories.reduce<Record<string, any[]>>((acc, cat) => {
+    if (filterCat !== 'All' && cat !== filterCat) return acc;
+    const items = getFilteredItems(grouped[cat] ?? []);
+    if (items.length > 0) acc[cat] = items;
+    return acc;
+  }, {});
+  const filteredCategories = Object.keys(filteredGrouped).sort((a, b) => {
+    const ai = CAT_ORDER.indexOf(a); const bi = CAT_ORDER.indexOf(b);
+    return (ai === -1 ? 99 : ai) - (bi === -1 ? 99 : bi);
+  });
+  const totalFiltered = Object.values(filteredGrouped).reduce((s, arr) => s + arr.length, 0);
+  const hasActiveFilter = search.trim() !== '' || filterCat !== 'All' || filterStatus !== 'all';
+
   if (loading) {
     return (
       <div className="flex items-center justify-center py-24">
@@ -105,31 +134,113 @@ export default function AdminMenuManagement() {
   return (
     <div className="space-y-6">
 
-      {/* Header */}
-      <div className="glass-strong p-4 rounded-2xl flex items-center justify-between gap-4">
-        <p className="text-xs text-muted-foreground">
-          <span className="font-bold text-orange-500">{selected.size}</span> / {apiProducts.length} items selected for today
-        </p>
+      {/* ── Header + Filter Card ── */}
+      <div className="glass-strong rounded-2xl border border-border/40 px-4 py-3 flex items-center gap-3 flex-wrap">
+
+        {/* Selected count badge */}
+        <div className="flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-orange-500/10 border border-orange-500/20 shrink-0">
+          <span className="text-sm font-black text-orange-400">{selected.size}</span>
+          <span className="text-[10px] text-muted-foreground font-medium">/ {apiProducts.length} selected</span>
+        </div>
+
+        {/* Separator */}
+        <div className="w-px h-5 bg-border/50 shrink-0" />
+
+        {/* Search */}
+        <div className="flex items-center gap-1.5 h-8 px-2.5 rounded-xl bg-background/60 border border-border/50 focus-within:border-orange-500/50 transition-colors" style={{ width: '220px' }}>
+          <Search className="w-3 h-3 text-muted-foreground/60 shrink-0" />
+          <input
+            ref={searchRef}
+            value={search}
+            onChange={e => setSearch(e.target.value)}
+            placeholder="Search items..."
+            className="flex-1 bg-transparent text-[11px] outline-none placeholder:text-muted-foreground/40 text-foreground min-w-0"
+          />
+          <AnimatePresence>
+            {search && (
+              <motion.button
+                initial={{ opacity: 0, scale: 0.6 }} animate={{ opacity: 1, scale: 1 }} exit={{ opacity: 0, scale: 0.6 }}
+                transition={{ duration: 0.12 }}
+                onClick={() => setSearch('')}
+                className="w-3.5 h-3.5 rounded-full bg-muted-foreground/25 hover:bg-red-500/30 flex items-center justify-center shrink-0 transition-colors"
+              >
+                <X className="w-2 h-2 text-muted-foreground" />
+              </motion.button>
+            )}
+          </AnimatePresence>
+        </div>
+
+        {/* Separator */}
+        <div className="w-px h-5 bg-border/50 shrink-0" />
+
+        {/* Category chips */}
+        <div className="flex items-center gap-1">
+          {['All', ...CAT_ORDER].map(cat => {
+            const active = filterCat === cat;
+            const grad =
+              cat === 'Breakfast' ? 'linear-gradient(135deg,#f59e0b,#fbbf24)' :
+              cat === 'Lunch'     ? 'linear-gradient(135deg,#10b981,#34d399)' :
+              cat === 'Dinner'    ? 'linear-gradient(135deg,#f97316,#fb923c)' :
+                                    'linear-gradient(135deg,hsl(24 95% 53%),hsl(43 96% 52%))';
+            return (
+              <motion.button key={cat} whileTap={{ scale: 0.9 }} onClick={() => setFilterCat(cat)}
+                className={`h-7 px-2.5 rounded-lg text-[10px] font-bold border transition-all ${
+                  active ? 'text-white border-transparent shadow-sm' : 'bg-transparent text-muted-foreground border-border/40 hover:text-foreground'
+                }`}
+                style={active ? { background: grad } : {}}
+              >
+                {cat !== 'All' ? `${catEmoji[cat]} ` : ''}{cat}
+              </motion.button>
+            );
+          })}
+        </div>
+
+        {/* Separator */}
+        <div className="w-px h-5 bg-border/50 shrink-0" />
+
+        {/* Status toggle + clear */}
+        <div className="flex items-center gap-1">
+          <div className="flex items-center gap-0.5 p-0.5 rounded-lg bg-muted/40 border border-border/40">
+            {([['all','All'],['added','✓ On'],['not-added','Off']] as const).map(([key, label]) => (
+              <motion.button key={key} whileTap={{ scale: 0.92 }} onClick={() => setFilterStatus(key)}
+                className={`h-6 px-2 rounded-md text-[10px] font-bold transition-all ${
+                  filterStatus === key
+                    ? key === 'added'     ? 'bg-emerald-500 text-white shadow-sm'
+                    : key === 'not-added' ? 'bg-slate-600 text-white shadow-sm'
+                    :                       'bg-orange-500 text-white shadow-sm'
+                    : 'text-muted-foreground hover:text-foreground'
+                }`}
+              >
+                {label}
+              </motion.button>
+            ))}
+          </div>
+          <AnimatePresence>
+            {hasActiveFilter && (
+              <motion.button
+                initial={{ opacity: 0, scale: 0.7 }} animate={{ opacity: 1, scale: 1 }} exit={{ opacity: 0, scale: 0.7 }}
+                transition={{ duration: 0.12 }}
+                onClick={() => { setSearch(''); setFilterCat('All'); setFilterStatus('all'); }}
+                className="h-6 w-6 rounded-lg bg-red-500/15 border border-red-500/30 text-red-400 hover:bg-red-500/25 flex items-center justify-center transition-colors"
+              >
+                <X className="w-3 h-3" />
+              </motion.button>
+            )}
+          </AnimatePresence>
+        </div>
+        {/* Publish — pushed to right */}
         <motion.button
           whileHover={{ scale: 1.03 }}
           whileTap={{ scale: 0.95 }}
           onClick={() => {
-            if (selected.size === 0) {
-              toast.warning('Please select at least one menu item to publish');
-              return;
-            }
-            if (
-              publishedSelection !== null &&
-              selected.size === publishedSelection.size &&
-              [...selected].every(id => publishedSelection.has(id))
-            ) {
-              toast.warning('This menu is already published. Please modify your selection before publishing again.');
-              return;
+            if (selected.size === 0) { toast.warning('Please select at least one menu item to publish'); return; }
+            if (publishedSelection !== null && selected.size === publishedSelection.size && [...selected].every(id => publishedSelection.has(id))) {
+              toast.warning('This menu is already published. Please modify your selection before publishing again.'); return;
             }
             handlePublish();
           }}
           disabled={publishing}
-          className="relative flex items-center gap-2 px-3 py-1.5 rounded-xl font-semibold text-xs text-orange-400 overflow-hidden group border border-orange-500/30 bg-orange-500/15 hover:bg-orange-500/20 hover:border-orange-500/40 transition-colors disabled:opacity-40 disabled:pointer-events-none"
+          className="relative flex items-center gap-2 px-3 py-1.5 rounded-xl font-semibold text-xs text-orange-400 overflow-hidden group border border-orange-500/30 bg-orange-500/15 hover:bg-orange-500/20 hover:border-orange-500/40 transition-colors disabled:opacity-40 disabled:pointer-events-none ml-auto"
           style={{ boxShadow: '0 0 12px -4px rgba(249,115,22,0.2), inset 0 1px 0 rgba(255,255,255,0.05)' }}
         >
           <span className="absolute inset-0 translate-x-[-100%] group-hover:translate-x-[100%] transition-transform duration-700 bg-gradient-to-r from-transparent via-orange-400/10 to-transparent pointer-events-none" />
@@ -149,14 +260,21 @@ export default function AdminMenuManagement() {
         </motion.button>
       </div>
 
-      {/* Category-grouped product grid */}
+      {/* ── Category-grouped product grid ── */}
       {apiProducts.length === 0 ? (
         <div className="text-center py-16 text-muted-foreground">
           <p className="text-sm">No menu items found.</p>
         </div>
+      ) : totalFiltered === 0 ? (
+        <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }}
+          className="text-center py-14 rounded-2xl border border-border/40 bg-muted/10">
+          <p className="text-2xl mb-2">🔍</p>
+          <p className="text-sm font-semibold text-muted-foreground">No items match your filters</p>
+          <p className="text-xs text-muted-foreground/60 mt-1">Try adjusting your search or category</p>
+        </motion.div>
       ) : (
         <div className="space-y-8">
-          {sortedCategories.map((category, groupIdx) => (
+          {filteredCategories.map((category, groupIdx) => (
             <div key={category}>
 
               {/* Category Badge */}
@@ -185,7 +303,7 @@ export default function AdminMenuManagement() {
                     {category}
                   </span>
                   <span className="text-[10px] font-medium text-muted-foreground">
-                    {grouped[category].length}
+                    {filteredGrouped[category]?.length ?? 0}
                   </span>
                 </div>
                 <div className="flex-1 h-px bg-border/30" />
@@ -193,11 +311,12 @@ export default function AdminMenuManagement() {
 
               {(() => {
                 const showAll = showAllMap[category];
-                const items = showAll ? grouped[category] : grouped[category].slice(0, SHOW_LIMIT);
-                const hasMore = grouped[category].length > SHOW_LIMIT;
+                const allFiltered = filteredGrouped[category] ?? [];
+                const items = showAll ? allFiltered : allFiltered.slice(0, SHOW_LIMIT);
+                const hasMore = allFiltered.length > SHOW_LIMIT;
                 return (
                   <>
-                    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
+                    <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-3">
                       {items.map((p, i) => {
                   const id: number = p.id;
                   const isSelected = selected.has(id);
@@ -208,37 +327,37 @@ export default function AdminMenuManagement() {
                       transition={{ delay: groupIdx * 0.08 + i * 0.04 }}
                       onClick={() => toggleItem(id)}
                       whileHover={{ scale: 1.02 }}
-                      className={`bg-card rounded-2xl border shadow-sm transition-all duration-200 overflow-hidden cursor-pointer ${
+                      className={`bg-card rounded-xl border shadow-sm transition-all duration-200 overflow-hidden cursor-pointer ${
                         isSelected ? 'border-orange-400/60 ring-2 ring-orange-400/20 bg-orange-500/5' : 'border-border/60'
                       }`}
                     >
-                      <div className="h-36 bg-muted/40 flex items-center justify-center overflow-hidden">
+                      <div className="h-24 bg-muted/40 flex items-center justify-center overflow-hidden">
                         {p.images?.[0]
                           ? <img src={p.images[0]} alt={p.name} className="w-full h-full object-cover" />
-                          : <span className="text-6xl">{emoji}</span>}
+                          : <span className="text-4xl">{emoji}</span>}
                       </div>
-                      <div className="p-4">
-                        <div className="flex items-center justify-between gap-2 mb-1">
-                          <h4 className="font-bold text-sm leading-snug truncate">{p.name}</h4>
-                          <Badge variant="outline" className={`text-[10px] font-semibold shrink-0 ${catColors[p.category] ?? ''}`}>
+                      <div className="p-2.5">
+                        <div className="flex items-start justify-between gap-1 mb-0.5">
+                          <h4 className="font-bold text-xs leading-snug truncate">{p.name}</h4>
+                          <Badge variant="outline" className={`text-[9px] font-semibold shrink-0 px-1.5 py-0 ${catColors[p.category] ?? ''}`}>
                             {p.category}
                           </Badge>
                         </div>
                         {p.description && (
-                          <p className="text-xs text-muted-foreground line-clamp-1 mb-3">{p.description}</p>
+                          <p className="text-[10px] text-muted-foreground line-clamp-1 mb-2">{p.description}</p>
                         )}
-                        <div className="flex items-center justify-between mt-2">
-                          <p className="text-lg font-bold text-orange-500">₹{p.price}</p>
+                        <div className="flex items-center justify-between mt-1.5">
+                          <p className="text-sm font-bold text-orange-500">₹{p.price}</p>
                           <motion.button
                             whileTap={{ scale: 0.93 }}
                             onClick={(e) => { e.stopPropagation(); toggleItem(id); }}
-                            className={`px-4 py-1.5 rounded-full text-xs font-bold border transition-all ${
+                            className={`px-2.5 py-1 rounded-full text-[10px] font-bold border transition-all ${
                               isSelected
                                 ? 'bg-orange-500 text-white border-orange-500 shadow-md'
                                 : 'bg-muted/40 text-muted-foreground border-border/50 hover:border-orange-400 hover:text-orange-500'
                             }`}
                           >
-                            {isSelected ? '✓ Available' : 'Available'}
+                            {isSelected ? '✓ Added' : 'Add'}
                           </motion.button>
                         </div>
                       </div>
@@ -254,7 +373,7 @@ export default function AdminMenuManagement() {
                         >
                           {showAll
                             ? <><ChevronUp className="w-4 h-4" /> Show Less</>
-                            : <><ChevronDown className="w-4 h-4" /> Show {grouped[category].length - SHOW_LIMIT} More Items</>
+                            : <><ChevronDown className="w-4 h-4" /> Show {allFiltered.length - SHOW_LIMIT} More Items</>
                           }
                         </button>
                       </div>

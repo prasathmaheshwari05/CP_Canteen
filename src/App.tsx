@@ -16,7 +16,6 @@ import AdminOrders from "@/pages/AdminOrders";
 import UserDashboard from "@/pages/UserDashboard";
 import UserCart from "@/pages/UserCart";
 import MyBooking from "@/pages/MyBooking";
-import MyCart from "@/pages/MyCart";
 import Login from "@/pages/Login";
 import Signup from "@/pages/Signup";
 import NotFound from "./pages/NotFound.tsx";
@@ -64,7 +63,6 @@ function AppRoutes() {
                   <Route path="/order" element={<UserDashboard />} />
                   <Route path="/cart" element={<UserCart />} />
                   <Route path="/my-booking" element={<MyBooking />} />
-                  <Route path="/my-cart" element={<MyCart />} />
                   <Route path="*" element={<Navigate to="/" replace />} />
                 </>
               )}

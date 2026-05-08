@@ -11,9 +11,11 @@ import {
   ShoppingCart,
   CheckCircle,
   Sparkles,
-  ChevronDown,
-  ChevronUp,
+  ChevronLeft,
+  ChevronRight,
   ClipboardList,
+  RefreshCw,
+  X,
 } from "lucide-react";
 import { useAppStore } from "@/store/appStore";
 import { toast } from "sonner";
@@ -117,11 +119,256 @@ function MyOrdersCard() {
   );
 }
 
+const catColors: Record<string, { border: string; badge: string; hint: string; hintColor: string }> = {
+  Breakfast: { border: 'border-amber-400/20',  badge: 'bg-amber-500/10 border-amber-400/30 text-amber-300',   hint: '🌙 Pre-book before 10:00 PM today — get your lunch delivered tomorrow!', hintColor: 'text-emerald-400' },
+  Lunch:     { border: 'border-sky-400/20', badge: 'bg-sky-500/10 border-sky-400/30 text-sky-400', hint: '🌙 Pre-book before 10:00 PM today — get your lunch delivered tomorrow!', hintColor: 'text-orange-400' },
+  Dinner:    { border: 'border-violet-400/20',  badge: 'bg-violet-500/10 border-violet-400/30 text-violet-400',   hint: '☀️ Book before 4:00 PM to secure your plate tonight!', hintColor: 'text-orange-400' },
+};
+
+function SkeletonRow() {
+  return (
+    <div className="space-y-4">
+      {/* Category badge skeleton */}
+      <div className="flex items-center gap-2.5">
+        <div className="flex-1 h-px bg-border/30" />
+        <div className="h-6 w-24 rounded-lg bg-muted/60 animate-pulse" />
+        <div className="flex-1 h-px bg-border/30" />
+      </div>
+      {/* Cards skeleton row */}
+      <div className="flex gap-4 pt-10 px-2 overflow-hidden">
+        {[...Array(4)].map((_, i) => (
+          <motion.div
+            key={i}
+            initial={{ opacity: 0, y: 8 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ delay: i * 0.06 }}
+            className="relative shrink-0 w-[160px] min-h-[190px] rounded-3xl border border-border/40 bg-muted/30 overflow-hidden"
+          >
+            {/* Floating image circle skeleton */}
+            <div className="absolute -top-10 left-1/2 -translate-x-1/2 w-20 h-20 rounded-full bg-muted/60 animate-pulse border-4 border-background" />
+            <div className="pt-14 px-3.5 pb-3.5 space-y-2">
+              <div className="h-3.5 w-3/4 mx-auto rounded-md bg-muted/60 animate-pulse" />
+              <div className="h-2.5 w-1/2 mx-auto rounded-md bg-muted/40 animate-pulse" />
+              <div className="mt-4 flex items-center justify-between">
+                <div className="h-4 w-10 rounded-md bg-muted/60 animate-pulse" />
+                <div className="h-8 w-8 rounded-xl bg-muted/60 animate-pulse" />
+              </div>
+            </div>
+            {/* Shimmer sweep */}
+            <motion.div
+              className="absolute inset-0 pointer-events-none"
+              style={{ background: 'linear-gradient(105deg,transparent 30%,rgba(255,255,255,0.07) 50%,transparent 70%)' }}
+              animate={{ x: ['-100%', '200%'] }}
+              transition={{ duration: 1.4, repeat: Infinity, ease: 'linear', delay: i * 0.2 }}
+            />
+          </motion.div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+function CategorySection({ category, groupIdx, grouped, cart, cartMealType, canAddToCart, addToCart, updateCartQty, clearCategoryCart }: {
+  category: string; groupIdx: number; grouped: Record<string, any[]>;
+  cart: any[]; cartMealType: string | null;
+  canAddToCart: (cat: string) => boolean;
+  addToCart: (p: any) => void; updateCartQty: (id: string, qty: number) => void;
+  clearCategoryCart: (cat: string) => void;
+}) {
+  const scrollRef = useRef<HTMLDivElement>(null);
+  const [canScrollLeft, setCanScrollLeft] = useState(false);
+  const [canScrollRight, setCanScrollRight] = useState(false);
+  const allItems = grouped[category] ?? [];
+  const colors = catColors[category] ?? { border: 'border-border/30', badge: 'bg-muted/40 border-border text-foreground', hint: '', hintColor: '' };
+
+  const checkScroll = () => {
+    const el = scrollRef.current;
+    if (!el) return;
+    setCanScrollLeft(el.scrollLeft > 8);
+    setCanScrollRight(el.scrollLeft + el.clientWidth < el.scrollWidth - 8);
+  };
+
+  useEffect(() => {
+    const el = scrollRef.current;
+    if (!el) return;
+    checkScroll();
+    el.addEventListener('scroll', checkScroll);
+    const ro = new ResizeObserver(checkScroll);
+    ro.observe(el);
+    return () => { el.removeEventListener('scroll', checkScroll); ro.disconnect(); };
+  }, [allItems]);
+
+  const scroll = (dir: 'left' | 'right') => {
+    scrollRef.current?.scrollBy({ left: dir === 'left' ? -280 : 280, behavior: 'smooth' });
+  };
+
+  const categoryInCart = cart.some(c => (c.product.category ?? '').toLowerCase() === category.toLowerCase());
+
+  return (
+    <div>
+      {/* Header row: badge + clear button */}
+      <motion.div
+        initial={{ opacity: 0, x: -8 }} animate={{ opacity: 1, x: 0 }}
+        transition={{ delay: groupIdx * 0.08, type: 'spring', stiffness: 300, damping: 26 }}
+        className="flex items-center gap-2.5 mb-4 mt-2"
+      >
+        <div className="flex-1 h-px bg-border/30" />
+        <div className={`relative flex items-center gap-2 px-3 py-1 rounded-lg overflow-hidden border ${colors.badge}`}>
+          <motion.div className="absolute inset-0 pointer-events-none"
+            style={{ background: 'linear-gradient(105deg,transparent 30%,rgba(255,255,255,0.06) 50%,transparent 70%)' }}
+            animate={{ x: ['-100%', '200%'] }}
+            transition={{ duration: 3, repeat: Infinity, ease: 'linear', repeatDelay: 3 }}
+          />
+          <motion.span animate={{ rotate: [0, 10, -10, 0] }} transition={{ duration: 3.5, repeat: Infinity, ease: 'easeInOut' }} className="text-sm">
+            {catEmojis[category] || '🍽️'}
+          </motion.span>
+          <span className="text-xs font-bold tracking-widest uppercase">{category}</span>
+          <span className="text-[10px] font-medium opacity-60">{allItems.length}</span>
+        </div>
+        <div className="flex-1 h-px bg-border/30" />
+      </motion.div>
+      {/* Clear button — top right corner */}
+      <div className="relative">
+        <AnimatePresence>
+          {categoryInCart && (
+            <motion.button
+              initial={{ opacity: 0, scale: 0.8, x: 8 }} animate={{ opacity: 1, scale: 1, x: 0 }} exit={{ opacity: 0, scale: 0.8, x: 8 }}
+              whileHover={{ scale: 1.05 }} whileTap={{ scale: 0.95 }}
+              onClick={() => clearCategoryCart(category)}
+              className="absolute -top-10 right-0 flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-[10px] font-bold border border-red-500/30 bg-red-500/10 text-red-400 hover:bg-red-500/20 transition-all"
+            >
+              <X className="w-3 h-3" /> Clear
+            </motion.button>
+          )}
+        </AnimatePresence>
+      </div>
+
+      {/* Hint banner */}
+      {colors.hint && (
+        <motion.p initial={{ opacity: 0, y: 6 }} animate={{ opacity: 1, y: 0 }}
+          transition={{ delay: 0.1, type: 'spring', stiffness: 280, damping: 24 }}
+          className={`text-xs font-extrabold text-center tracking-tight mb-4 ${colors.hintColor}`}>
+          {colors.hint}
+        </motion.p>
+      )}
+
+      {/* Horizontal scroll row with side arrows */}
+      <div className="relative">
+        {/* Left arrow — vertically centered over cards */}
+        <AnimatePresence>
+          {canScrollLeft && (
+            <motion.button
+              initial={{ opacity: 0, x: 6 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: 6 }}
+              whileHover={{ scale: 1.1 }} whileTap={{ scale: 0.9 }}
+              onClick={() => scroll('left')}
+              className="absolute -left-4 top-1/2 -translate-y-1/2 z-20 w-9 h-9 rounded-full flex items-center justify-center shadow-lg border border-white/20 backdrop-blur-sm"
+              style={{ background: 'linear-gradient(135deg,rgba(30,30,40,0.92),rgba(20,20,30,0.88))', boxShadow: '0 4px 20px rgba(0,0,0,0.35)' }}
+            >
+              <ChevronLeft className="w-4 h-4 text-white" />
+            </motion.button>
+          )}
+        </AnimatePresence>
+
+        {/* Right arrow — vertically centered over cards */}
+        <AnimatePresence>
+          {canScrollRight && (
+            <motion.button
+              initial={{ opacity: 0, x: -6 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: -6 }}
+              whileHover={{ scale: 1.1 }} whileTap={{ scale: 0.9 }}
+              onClick={() => scroll('right')}
+              className="absolute -right-4 top-1/2 -translate-y-1/2 z-20 w-9 h-9 rounded-full flex items-center justify-center shadow-lg border border-white/20 backdrop-blur-sm"
+              style={{ background: 'linear-gradient(135deg,rgba(30,30,40,0.92),rgba(20,20,30,0.88))', boxShadow: '0 4px 20px rgba(0,0,0,0.35)' }}
+            >
+              <ChevronRight className="w-4 h-4 text-white" />
+            </motion.button>
+          )}
+        </AnimatePresence>
+
+        <div ref={scrollRef} className="flex gap-4 overflow-x-auto pb-4 pt-12 px-2 mx-4 scroll-smooth"
+          style={{ scrollbarWidth: 'none', msOverflowStyle: 'none' }}>
+          {allItems.map((p, i) => {
+            const pid = String(p.menu_id ?? p.id);
+            const inCart = cart.find((c) => c.product.id === pid);
+            const cartProduct = { id: pid, name: p.name, price: p.price, category: p.category, available: p.available, images: p.images ?? [], description: p.description ?? '' };
+            return (
+              <motion.div key={pid}
+                initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }}
+                transition={{ delay: i * 0.05, type: 'spring', stiffness: 280, damping: 22 }}
+                whileHover={{ y: -6, scale: 1.02 }}
+                className={`group relative rounded-3xl flex flex-col items-center pt-12 px-3.5 pb-3.5 border shrink-0 w-[170px] min-h-[160px] ${
+                  inCart
+                    ? 'border-cyan-400/70 shadow-[0_14px_34px_rgba(14,165,233,0.28)]'
+                    : 'border-slate-300/50 dark:border-slate-700/70 shadow-[0_8px_20px_rgba(15,23,42,0.1)] dark:shadow-[0_8px_24px_rgba(2,6,23,0.5)]'
+                } bg-gradient-to-b from-white to-slate-50 dark:from-slate-900 dark:to-slate-950 cursor-pointer`}
+              >
+                <div className="pointer-events-none absolute inset-0 rounded-3xl opacity-0 group-hover:opacity-100 transition-opacity duration-300"
+                  style={{ background: 'linear-gradient(130deg,rgba(56,189,248,0.08),transparent 45%,rgba(249,115,22,0.1))' }} />
+
+                {/* Floating image */}
+                <div className="absolute -top-10 left-1/2 -translate-x-1/2 w-20 h-20 rounded-full overflow-hidden border-4 border-white dark:border-slate-900"
+                  style={{ boxShadow: '0 10px 24px rgba(15,23,42,0.26)' }}>
+                  {p.images?.[0]
+                    ? <img src={p.images[0]} alt={p.name} className="w-full h-full object-cover" />
+                    : <div className="w-full h-full flex items-center justify-center text-3xl" style={{ background: '#f5f5f5' }}>{catEmojis[p.category] || '🍽️'}</div>
+                  }
+                </div>
+
+                <p className="text-sm font-extrabold text-center leading-snug mb-1 w-full px-1 text-slate-900 dark:text-slate-100"
+                  style={{ wordBreak: 'break-word', fontFamily: "'Playfair Display','Georgia',serif", letterSpacing: '0.02em' }}>
+                  {p.name}
+                </p>
+                <p className="text-[10px] text-center mb-2 text-slate-500 dark:text-slate-400">{p.category}</p>
+
+                {!inCart ? (
+                  <div className="grid grid-cols-[1fr_auto] items-center gap-2 w-full mt-auto">
+                    <p className="text-sm font-black leading-none text-slate-900 dark:text-slate-100 truncate">₹{p.price}</p>
+                    <motion.button whileTap={{ scale: 0.85 }}
+                      onClick={() => {
+                        if (!canAddToCart(p.category)) {
+                          const other = cartMealType === 'lunch' ? 'Dinner' : 'Lunch';
+                          toast.warning(`Remove your ${cartMealType === 'lunch' ? 'Lunch' : 'Dinner'} items before adding ${other}.`);
+                          return;
+                        }
+                        addToCart(cartProduct);
+                      }}
+                      className="w-8 h-8 rounded-xl flex items-center justify-center text-white font-black shadow-[0_7px_16px_rgba(14,165,233,0.35)]"
+                      style={{ background: 'linear-gradient(135deg,rgba(249,115,22,1),rgba(56,189,248,1))' }}>
+                      <Plus className="w-4 h-4" />
+                    </motion.button>
+                  </div>
+                ) : (
+                  <div className="w-full mt-auto space-y-1.5">
+                    <p className="text-sm font-black leading-none text-slate-900 dark:text-slate-100">₹{p.price}</p>
+                    <div className="flex items-center gap-1 rounded-xl border border-cyan-200/80 dark:border-cyan-800/60 bg-cyan-50/80 dark:bg-cyan-950/40 px-1.5 py-1 w-full justify-between">
+                      <motion.button whileTap={{ scale: 0.85 }} onClick={() => updateCartQty(pid, inCart.quantity - 1)}
+                        className="w-6 h-6 rounded-md flex items-center justify-center font-black bg-white/90 dark:bg-slate-900/70 text-cyan-700 dark:text-cyan-300"
+                        style={{ boxShadow: '0 3px 10px rgba(14,165,233,0.2)' }}>
+                        <Minus className="w-3.5 h-3.5" strokeWidth={2.8} />
+                      </motion.button>
+                      <span className="text-sm font-black text-slate-900 dark:text-slate-100 w-5 text-center">{inCart.quantity}</span>
+                      <motion.button whileTap={{ scale: 0.85 }} onClick={() => addToCart(cartProduct)}
+                        className="w-6 h-6 rounded-md flex items-center justify-center font-black bg-white/90 dark:bg-slate-900/70 text-cyan-700 dark:text-cyan-300"
+                        style={{ boxShadow: '0 3px 10px rgba(14,165,233,0.2)' }}>
+                        <Plus className="w-3.5 h-3.5" strokeWidth={2.8} />
+                      </motion.button>
+                    </div>
+                  </div>
+                )}
+              </motion.div>
+            );
+          })}
+        </div>
+      </div>
+    </div>
+  );
+}
+
 export default function UserDashboard() {
   const { addToCart, updateCartQty, cart, addMyOrder } = useAppStore();
   const navigate = useNavigate();
   const [menuProducts, setMenuProducts] = useState<any[]>([]);
   const [menuLoading, setMenuLoading] = useState(true);
+  const [refreshing, setRefreshing] = useState(false);
   const [activeVideo, setActiveVideo] = useState(0);
   const [showBill, setShowBill] = useState(false);
   const [showCheckout, setShowCheckout] = useState(false);
@@ -133,36 +380,30 @@ export default function UserDashboard() {
   const [orderId] = useState(
     () => "ORD-" + Math.random().toString(36).slice(2, 8).toUpperCase(),
   );
-  const [showAllMap, setShowAllMap] = useState<Record<string, boolean>>({});
-  const toggleShowAll = (cat: string) =>
-    setShowAllMap((prev) => ({ ...prev, [cat]: !prev[cat] }));
   const billRef = useRef<HTMLDivElement>(null);
 
   // Fetch today's menu from GET /api/today-menu
-  useEffect(() => {
-    const fetchTodayMenu = async () => {
-      setMenuLoading(true);
-      try {
-        const [todayRes, menuRes] = await Promise.all([
-          ApiService.get("/api/today-menu"),
-          ApiService.get("/api/menu"),
-        ]);
-        const todayItems: any[] = todayRes.data ?? [];
-        const allProducts: any[] = menuRes.data ?? [];
-        // Merge category from /api/menu into today-menu items
-        const merged = todayItems.map((item: any) => {
-          const full = allProducts.find((p: any) => p.id === item.menu_id);
-          return { ...item, category: full?.category ?? "" };
-        });
-        setMenuProducts(merged);
-      } catch {
-        setMenuProducts([]);
-      } finally {
-        setMenuLoading(false);
-      }
-    };
-    fetchTodayMenu();
-  }, []);
+  const fetchTodayMenu = async (isRefresh = false) => {
+    isRefresh ? setRefreshing(true) : setMenuLoading(true);
+    try {
+      const [todayRes, menuRes] = await Promise.all([
+        ApiService.get("/api/today-menu"),
+        ApiService.get("/api/menu"),
+      ]);
+      const todayItems: any[] = todayRes.data ?? [];
+      const allProducts: any[] = menuRes.data ?? [];
+      const merged = todayItems.map((item: any) => {
+        const full = allProducts.find((p: any) => p.id === item.menu_id);
+        return { ...item, category: full?.category ?? "" };
+      });
+      setMenuProducts(merged);
+      if (isRefresh) toast.error('Failed to refresh menu');
+    } finally {
+      isRefresh ? setRefreshing(false) : setMenuLoading(false);
+    }
+  };
+
+  useEffect(() => { fetchTodayMenu(); }, []);
 
   useEffect(() => {
     const timer = setInterval(() => {
@@ -170,6 +411,29 @@ export default function UserDashboard() {
     }, 10000);
     return () => clearInterval(timer);
   }, []);
+
+  const cartMealType = (() => {
+    const cats = cart.map(c => (c.product.category ?? '').toLowerCase());
+    if (cats.some(c => c === 'lunch')) return 'lunch';
+    if (cats.some(c => c === 'dinner')) return 'dinner';
+    return null;
+  })();
+
+  const canAddToCart = (category: string) => {
+    const cat = (category ?? '').toLowerCase();
+    if (cat !== 'lunch' && cat !== 'dinner') return true;
+    if (!cartMealType) return true;
+    if (cartMealType === cat) return true;
+    return false;
+  };
+
+  const clearCategoryCart = (category: string) => {
+    const cat = category.toLowerCase();
+    menuProducts
+      .filter(p => (p.category ?? '').toLowerCase() === cat)
+      .forEach(p => updateCartQty(String(p.menu_id ?? p.id), 0));
+    toast.success(`${category} items cleared`);
+  };
 
   const total = cart.reduce((s, c) => s + c.product.price * c.quantity, 0);
   const totalItems = cart.reduce((s, c) => s + c.quantity, 0);
@@ -230,7 +494,7 @@ export default function UserDashboard() {
     setConfirmed(false);
     menuProducts.forEach((p) => updateCartQty(String(p.menu_id ?? p.id), 0));
     setShowBill(false);
-    navigate('/my-cart');
+    navigate('/my-booking');
   };
 
   return (
@@ -341,8 +605,28 @@ export default function UserDashboard() {
             </p>
           </div>
         </div>
-        <div className="hidden sm:flex items-center gap-2 rounded-full border border-cyan-300/30 bg-cyan-500/10 px-3 py-1.5 text-[11px] font-semibold text-cyan-100">
-          Live Menu
+        <div className="hidden sm:flex items-center gap-2">
+          {/* Refresh button */}
+          <motion.button
+            onClick={() => fetchTodayMenu(true)}
+            disabled={refreshing}
+            whileHover={{ scale: 1.08 }}
+            whileTap={{ scale: 0.92 }}
+            className="flex items-center justify-center w-8 h-8 rounded-full border border-cyan-300/30 bg-cyan-500/10 hover:bg-cyan-500/20 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+            title="Refresh menu"
+          >
+            <motion.div
+              animate={refreshing ? { rotate: 360 } : { rotate: 0 }}
+              transition={refreshing ? { repeat: Infinity, duration: 0.7, ease: 'linear' } : { duration: 0.3 }}
+            >
+              <RefreshCw className="w-3.5 h-3.5 text-cyan-300" />
+            </motion.div>
+          </motion.button>
+          {/* Live Menu badge */}
+          <div className="flex items-center gap-2 rounded-full border border-cyan-300/30 bg-cyan-500/10 px-3 py-1.5 text-[11px] font-semibold text-cyan-100">
+            <span className="w-1.5 h-1.5 rounded-full bg-cyan-400 animate-pulse" />
+            Live Menu
+          </div>
         </div>
       </motion.div>
 
@@ -361,214 +645,58 @@ export default function UserDashboard() {
           </div>
         </div>
       ) : menuProducts.length > 0 ? (
-        <div className="space-y-8">
-          {sortedCategories.map((category, groupIdx) => {
-            const showAll = showAllMap[category];
-            const allItems = grouped[category];
-            const items = showAll ? allItems : allItems.slice(0, SHOW_LIMIT);
-            const hasMore = allItems.length > SHOW_LIMIT;
-            return (
-            <div key={category}>
-              {/* Category Badge */}
+        <div className="space-y-8 relative">
+          {/* Shimmer overlay on top of cards during refresh */}
+          <AnimatePresence>
+            {refreshing && (
               <motion.div
-                initial={{ opacity: 0, x: -8 }}
-                animate={{ opacity: 1, x: 0 }}
-                transition={{ delay: groupIdx * 0.08, type: "spring", stiffness: 300, damping: 26 }}
-                className="flex items-center gap-2.5 mb-6 mt-2"
+                initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
+                className="absolute inset-0 z-10 rounded-2xl pointer-events-none overflow-hidden"
               >
-                <div className="flex-1 h-px bg-border/30" />
-                <div className="relative flex items-center gap-2 px-3 py-1 rounded-lg overflow-hidden border border-border bg-muted/40">
-                  <motion.div
-                    className="absolute inset-0 pointer-events-none"
-                    style={{ background: "linear-gradient(105deg,transparent 30%,hsl(var(--primary)/0.08) 50%,transparent 70%)" }}
-                    animate={{ x: ["-100%", "200%"] }}
-                    transition={{ duration: 3, repeat: Infinity, ease: "linear", repeatDelay: 3 }}
-                  />
-                  <motion.span
-                    animate={{ rotate: [0, 10, -10, 0] }}
-                    transition={{ duration: 3.5, repeat: Infinity, ease: "easeInOut" }}
-                    className="text-sm"
-                  >
-                    {catEmojis[category] || "🍽️"}
-                  </motion.span>
-                  <span className="text-xs font-bold tracking-widest uppercase text-foreground">
-                    {category}
-                  </span>
-                  <span className="text-[10px] font-medium text-muted-foreground">
-                    {allItems.length}
-                  </span>
-                </div>
-                <div className="flex-1 h-px bg-border/30" />
-              </motion.div>
-
-              {groupIdx === 0 && (
+                <div className="absolute inset-0 bg-background/55 backdrop-blur-[3px]" />
                 <motion.div
-                  initial={{ opacity: 0, y: 6 }}
-                  animate={{ opacity: 1, y: 0 }}
-                  transition={{ delay: 0.1, type: "spring", stiffness: 280, damping: 24 }}
-                  className="flex justify-center mb-6"
-                >
-                  <p className="text-sm font-extrabold text-center tracking-tight text-emerald-400" style={{ textShadow: "0 0 18px rgba(52,211,153,0.35)" }}>
-                    🌙 Pre-book before 10:00 PM today — get your lunch delivered tomorrow!
-                  </p>
-                </motion.div>
-              )}
-
-              {category.toLowerCase() === "dinner" && (
-                <motion.div
-                  initial={{ opacity: 0, y: 6 }}
-                  animate={{ opacity: 1, y: 0 }}
-                  transition={{ delay: 0.1, type: "spring", stiffness: 280, damping: 24 }}
-                  className="flex justify-center mb-6"
-                >
-                  <p className="text-sm font-extrabold text-center tracking-tight text-orange-400" style={{ textShadow: "0 0 18px rgba(249,115,22,0.35)" }}>
-                    ☀️ Book before 4:00 PM to secure your plate tonight!
-                  </p>
-                </motion.div>
-              )}
-
-              <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-x-3 gap-y-14 pt-12">
-                {items.map((p) => {
-              const pid = String(p.menu_id ?? p.id);
-              const inCart = cart.find((c) => c.product.id === pid);
-              const cartProduct = {
-                id: pid,
-                name: p.name,
-                price: p.price,
-                category: p.category,
-                available: p.available,
-                images: p.images ?? [],
-                description: p.description ?? "",
-              };
-              return (
-                <motion.div
-                  key={pid}
-                  whileHover={{
-                    y: -7,
-                    scale: 1.01,
-                  }}
-                  transition={{ type: "spring", stiffness: 280, damping: 20 }}
-                  className={`group relative rounded-3xl flex flex-col items-center pt-12 px-3.5 pb-3.5 border min-h-[146px] ${
-                    inCart
-                      ? "border-cyan-400/70 dark:border-cyan-400/80 shadow-[0_14px_34px_rgba(14,165,233,0.28)]"
-                      : "border-slate-300/50 dark:border-slate-700/70 shadow-[0_12px_26px_rgba(15,23,42,0.12)] dark:shadow-[0_12px_30px_rgba(2,6,23,0.5)]"
-                  } bg-gradient-to-b from-white to-slate-50 dark:from-slate-900 dark:to-slate-950`}
-                >
-                  <div
-                    className="pointer-events-none absolute inset-0 rounded-3xl opacity-0 group-hover:opacity-100 transition-opacity duration-300"
-                    style={{
-                      background:
-                        "linear-gradient(130deg,rgba(56,189,248,0.08),transparent 45%,rgba(249,115,22,0.1))",
-                    }}
-                  />
-                  {/* Floating food image */}
-                  <div
-                    className="absolute -top-10 left-1/2 -translate-x-1/2 w-20 h-20 rounded-full overflow-hidden shrink-0 border-4 border-white dark:border-slate-900"
-                    style={{ boxShadow: "0 10px 24px rgba(15,23,42,0.26)" }}
-                  >
-                    {p.images?.[0] ? (
-                      <img
-                        src={p.images[0]}
-                        alt={p.name}
-                        className="w-full h-full object-cover"
-                      />
-                    ) : (
-                      <div
-                        className="w-full h-full flex items-center justify-center text-3xl"
-                        style={{ background: "#f5f5f5" }}
-                      >
-                        {catEmojis[p.category] || "🍽️"}
-                      </div>
-                    )}
+                  className="absolute inset-0"
+                  style={{ background: 'linear-gradient(105deg,transparent 25%,rgba(56,189,248,0.08) 50%,transparent 75%)' }}
+                  animate={{ x: ['-100%', '200%'] }}
+                  transition={{ duration: 1.3, repeat: Infinity, ease: 'linear' }}
+                />
+                <div className="absolute inset-0 flex flex-col items-center justify-center gap-2.5">
+                  <div className="flex items-center gap-3 bg-background/80 border border-cyan-400/30 rounded-2xl px-5 py-3 shadow-lg backdrop-blur-sm">
+                    <motion.div
+                      animate={{ rotate: 360 }}
+                      transition={{ repeat: Infinity, duration: 0.75, ease: 'linear' }}
+                      className="w-5 h-5 border-2 border-cyan-400/30 border-t-cyan-400 rounded-full shrink-0"
+                    />
+                    <span className="text-sm font-semibold text-cyan-400 tracking-wide">Refreshing menu...</span>
                   </div>
+                </div>
+              </motion.div>
+            )}
+          </AnimatePresence>
 
-                  <p
-                    className="text-sm font-extrabold text-center leading-snug mb-1 w-full px-1 tracking-wide text-slate-900 dark:text-slate-100"
-                    style={{
-                      wordBreak: "break-word",
-                      fontFamily: "'Playfair Display', 'Georgia', serif",
-                      letterSpacing: "0.02em",
-                    }}
-                  >
-                    {p.name}
-                  </p>
+          {/* Breakfast — full width */}
+          {grouped['Breakfast'] && <CategorySection category="Breakfast" groupIdx={sortedCategories.indexOf('Breakfast')} grouped={grouped} cart={cart} cartMealType={cartMealType} canAddToCart={canAddToCart} addToCart={addToCart} updateCartQty={updateCartQty} clearCategoryCart={clearCategoryCart} />}
 
-                  <p className="text-[10px] text-center mb-2 text-slate-500 dark:text-slate-400">
-                    {p.category}
-                  </p>
-
-                  {!inCart ? (
-                    <div className="grid grid-cols-[1fr_auto] items-center gap-2 w-full mt-auto">
-                      <p className="text-sm font-black leading-none text-slate-900 dark:text-slate-100 truncate pr-1">
-                        ₹{p.price}
-                      </p>
-                      <motion.button
-                        whileTap={{ scale: 0.85 }}
-                        onClick={() => addToCart(cartProduct)}
-                        className="w-8 h-8 rounded-xl flex items-center justify-center text-white font-black shadow-[0_7px_16px_rgba(14,165,233,0.35)]"
-                        style={{
-                          background:
-                            "linear-gradient(135deg,rgba(249,115,22,1),rgba(56,189,248,1))",
-                        }}
-                      >
-                        <Plus className="w-4 h-4" />
-                      </motion.button>
-                    </div>
-                  ) : (
-                    <div className="w-full mt-auto space-y-2">
-                      <p className="text-sm font-black leading-none text-slate-900 dark:text-slate-100">
-                        ₹{p.price}
-                      </p>
-                      <div className="flex items-center gap-1.5 rounded-xl border border-cyan-200/80 dark:border-cyan-800/60 bg-cyan-50/80 dark:bg-cyan-950/40 px-1.5 py-1 w-full justify-between">
-                        <motion.button
-                          whileTap={{ scale: 0.85 }}
-                          onClick={() =>
-                            updateCartQty(pid, inCart.quantity - 1)
-                          }
-                          className="w-6 h-6 rounded-md flex items-center justify-center font-black bg-white/90 dark:bg-slate-900/70 text-cyan-700 dark:text-cyan-300 hover:bg-white dark:hover:bg-slate-900"
-                          style={{
-                            boxShadow: "0 3px 10px rgba(14,165,233,0.2)",
-                          }}
-                        >
-                          <Minus className="w-3.5 h-3.5" strokeWidth={2.8} />
-                        </motion.button>
-                        <span className="text-sm font-black text-slate-900 dark:text-slate-100 w-6 text-center">
-                          {inCart.quantity}
-                        </span>
-                        <motion.button
-                          whileTap={{ scale: 0.85 }}
-                          onClick={() => addToCart(cartProduct)}
-                          className="w-6 h-6 rounded-md flex items-center justify-center font-black bg-white/90 dark:bg-slate-900/70 text-cyan-700 dark:text-cyan-300 hover:bg-white dark:hover:bg-slate-900"
-                          style={{
-                            boxShadow: "0 3px 10px rgba(14,165,233,0.2)",
-                          }}
-                        >
-                          <Plus className="w-3.5 h-3.5" strokeWidth={2.8} />
-                        </motion.button>
-                      </div>
-                    </div>
-                  )}
-                </motion.div>
-                );
-                })}
-              </div>
-
-              {hasMore && (
-                <div className="flex justify-center pt-4">
-                  <button
-                    onClick={() => toggleShowAll(category)}
-                    className="inline-flex items-center gap-2 px-6 py-2.5 rounded-xl text-sm font-semibold border border-border/60 bg-muted/40 hover:bg-muted/70 text-muted-foreground hover:text-foreground transition-all"
-                  >
-                    {showAll
-                      ? <><ChevronUp className="w-4 h-4" /> Show Less</>
-                      : <><ChevronDown className="w-4 h-4" /> Show {allItems.length - SHOW_LIMIT} More Items</>
-                    }
-                  </button>
+          {/* Lunch + Dinner — side by side */}
+          {(grouped['Lunch'] || grouped['Dinner']) && (
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+              {grouped['Lunch'] && (
+                <div className="rounded-2xl border border-sky-400/20 bg-sky-500/5 p-4">
+                  <CategorySection category="Lunch" groupIdx={sortedCategories.indexOf('Lunch')} grouped={grouped} cart={cart} cartMealType={cartMealType} canAddToCart={canAddToCart} addToCart={addToCart} updateCartQty={updateCartQty} clearCategoryCart={clearCategoryCart} />
+                </div>
+              )}
+              {grouped['Dinner'] && (
+                <div className="rounded-2xl border border-violet-400/20 bg-violet-500/5 p-4">
+                  <CategorySection category="Dinner" groupIdx={sortedCategories.indexOf('Dinner')} grouped={grouped} cart={cart} cartMealType={cartMealType} canAddToCart={canAddToCart} addToCart={addToCart} updateCartQty={updateCartQty} clearCategoryCart={clearCategoryCart} />
                 </div>
               )}
             </div>
-            );
-          })}
+          )}
+
+          {/* Any other categories */}
+          {sortedCategories.filter(c => !['Breakfast','Lunch','Dinner'].includes(c)).map((category, i) => (
+            <CategorySection key={category} category={category} groupIdx={i} grouped={grouped} cart={cart} cartMealType={cartMealType} canAddToCart={canAddToCart} addToCart={addToCart} updateCartQty={updateCartQty} clearCategoryCart={clearCategoryCart} />
+          ))}
 
           {/* View Bill button */}
           <AnimatePresence>
