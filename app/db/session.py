@@ -16,7 +16,13 @@
 
 from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker, declarative_base
+from dotenv import load_dotenv
+import os
 
+# ✅ load .env file
+load_dotenv()
+
+# ✅ get database url from .env
 SQLALCHEMY_DATABASE_URL = os.getenv("DATABASE_URL")
 
 engine = create_engine(

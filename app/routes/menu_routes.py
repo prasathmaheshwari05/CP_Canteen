@@ -1,32 +1,32 @@
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends
 from sqlalchemy.orm import Session
-
-from app.db.models import Menu
-from app.db.dependency import get_db
-from app.schemas.menu_schema import MenuCreate, MenuUpdate
-from app.auth.dependencies import admin_required, user_required
-from app.auth.dependencies import get_current_user
-from app.schemas.menu_schema import MenuResponse
 from typing import List
+
+from app.db.dependency import get_db
+
+from app.schemas.menu_schema import MenuCreate, MenuUpdate, MenuResponse
+
+from app.auth.dependencies import admin_required, get_current_user
+
+from app.services.menu_service import (
+    add_menu_service,
+    update_menu_service,
+    delete_menu_service,
+    get_menu_service,
+)
 
 router = APIRouter()
 
 
-# 👨‍💼 ADMIN → ADD MENU
+# ✅ ADD MENU
 @router.post("/menu", response_model=MenuResponse)
 def add_menu(
     menu: MenuCreate, db: Session = Depends(get_db), user=Depends(admin_required)
 ):
-
-    new_item = Menu(**menu.dict())
-    db.add(new_item)
-    db.commit()
-    db.refresh(new_item)
-
-    # return {"message": "Menu item added"}
-    return new_item
+    return add_menu_service(menu, db)
 
 
+# ✅ UPDATE MENU
 @router.put("/menu/{menu_id}", response_model=MenuResponse)
 def update_menu(
     menu_id: int,
@@ -34,41 +34,18 @@ def update_menu(
     db: Session = Depends(get_db),
     user=Depends(admin_required),
 ):
-    item = db.query(Menu).filter(Menu.id == menu_id).first()
-
-    if not item:
-        raise HTTPException(status_code=404, detail="Menu not found")
-
-    # 🔥 update only provided fields
-    for key, value in menu.dict(exclude_unset=True).items():
-        setattr(item, key, value)
-
-    db.commit()
-    db.refresh(item)  # ✅ IMPORTANT
-
-    return item  # ✅ return updated object
+    return update_menu_service(menu_id, menu, db)
 
 
-# 👨‍💼 ADMIN → DELETE MENU
+# ✅ DELETE MENU
 @router.delete("/menu/{menu_id}")
 def delete_menu(
     menu_id: int, db: Session = Depends(get_db), user=Depends(admin_required)
 ):
-
-    item = db.query(Menu).filter(Menu.id == menu_id).first()
-
-    if not item:
-        raise HTTPException(status_code=404, detail="Menu not found")
-
-    db.delete(item)
-    db.commit()
-
-    return {"message": "Menu deleted"}
+    return delete_menu_service(menu_id, db)
 
 
+# ✅ GET MENU
 @router.get("/menu", response_model=List[MenuResponse])
 def get_menu(db: Session = Depends(get_db), current_user=Depends(get_current_user)):
-    if current_user.role == "admin":
-        return db.query(Menu).all()  # 👨‍💼 admin → all items
-    else:
-        return db.query(Menu).filter(Menu.available == True).all()  # 👨‍🍳 user
+    return get_menu_service(db, current_user)
