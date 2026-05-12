@@ -23,7 +23,11 @@ os.makedirs("qrcodes", exist_ok=True)
 load_dotenv()
 app = FastAPI()
 
-cors_origins = os.getenv("CORS_ORIGINS", "").split(",")
+cors_origins = [
+    origin.strip()
+    for origin in os.getenv("CORS_ORIGINS", "").split(",")
+    if origin.strip()
+]
 app.state.limiter = limiter
 
 app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
