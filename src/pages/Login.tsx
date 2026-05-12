@@ -5,6 +5,7 @@ import { Eye, EyeOff, ArrowRight } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { useAppStore } from "@/store/appStore";
 import ApiService from "@/api/apiServices";
+import { toast } from "sonner";
 
 interface FieldProps {
   label: string;
@@ -157,8 +158,12 @@ export default function Login() {
 
       setCurrentUser({ emp_name: resolvedName, emp_mail: resolvedMail, emp_id: loginEmpId, id: userId } as any);
       navigate("/");
-    } catch {
-      setErrors({ password: "Invalid credentials" });
+    } catch (err: any) {
+      if (err?.response?.status === 429) {
+        toast.error("Too many attempts, wait 1 minute");
+      } else {
+        setErrors({ password: "Invalid credentials" });
+      }
     } finally {
       setIsLoading(false);
     }
