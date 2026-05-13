@@ -30,6 +30,25 @@ const catEmojis: Record<string, string> = {
 const CAT_ORDER = ["Breakfast", "Lunch", "Dinner"];
 const SHOW_LIMIT = 8;
 
+// Returns true if ordering is closed for this category based on current time
+function isCategoryDisabled(category: string): boolean {
+  const now = new Date();
+  const h = now.getHours();
+  const m = now.getMinutes();
+  const mins = h * 60 + m;
+  const cat = category.toLowerCase();
+  if (cat === 'dinner') return mins > 16 * 60;      // after 4:00 PM
+  if (cat === 'lunch')  return mins > 22 * 60;      // after 10:00 PM
+  return false;
+}
+
+function getCutoffLabel(category: string): string {
+  const cat = category.toLowerCase();
+  if (cat === 'dinner') return 'Ordering closed after 4:00 PM';
+  if (cat === 'lunch')  return 'Ordering closed after 10:00 PM';
+  return '';
+}
+
 const dashboardVideos = [
   { src: "/dashboardVideos/video1.mp4" },
   { src: "/dashboardVideos/video2.mp4" },
@@ -252,6 +271,15 @@ function CategorySection({ category, groupIdx, grouped, cart, cartMealType, canA
         </motion.p>
       )}
 
+      {/* Closed banner */}
+      {isCategoryDisabled(category) && (
+        <motion.div initial={{ opacity: 0, y: 4 }} animate={{ opacity: 1, y: 0 }}
+          className="flex items-center justify-center gap-2 mb-4 px-4 py-2 rounded-xl border border-red-500/25 bg-red-500/10">
+          <span className="text-sm">🔒</span>
+          <span className="text-xs font-bold text-red-400">{getCutoffLabel(category)}</span>
+        </motion.div>
+      )}
+
       {/* Horizontal scroll row with side arrows */}
       <div className="relative">
         {/* Left arrow — vertically centered over cards */}
@@ -289,18 +317,31 @@ function CategorySection({ category, groupIdx, grouped, cart, cartMealType, canA
           {allItems.map((p, i) => {
             const pid = String(p.menu_id ?? p.id);
             const inCart = cart.find((c) => c.product.id === pid);
+            const disabled = isCategoryDisabled(category);
             const cartProduct = { id: pid, name: p.name, price: p.price, category: p.category, available: p.available, images: p.images ?? [], description: p.description ?? '' };
             return (
               <motion.div key={pid}
                 initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }}
                 transition={{ delay: i * 0.05, type: 'spring', stiffness: 280, damping: 22 }}
-                whileHover={{ y: -6, scale: 1.02 }}
+                whileHover={disabled ? {} : { y: -6, scale: 1.02 }}
                 className={`group relative rounded-3xl flex flex-col items-center pt-12 px-3.5 pb-3.5 border shrink-0 w-[170px] min-h-[160px] ${
-                  inCart
+                  disabled
+                    ? 'border-slate-300/30 dark:border-slate-700/40 opacity-60'
+                    : inCart
                     ? 'border-cyan-400/70 shadow-[0_14px_34px_rgba(14,165,233,0.28)]'
                     : 'border-slate-300/50 dark:border-slate-700/70 shadow-[0_8px_20px_rgba(15,23,42,0.1)] dark:shadow-[0_8px_24px_rgba(2,6,23,0.5)]'
-                } bg-gradient-to-b from-white to-slate-50 dark:from-slate-900 dark:to-slate-950 cursor-pointer`}
+                } bg-gradient-to-b from-white to-slate-50 dark:from-slate-900 dark:to-slate-950`}
               >
+                {/* Disabled overlay */}
+                {disabled && (
+                  <div className="absolute inset-0 rounded-3xl z-10 flex flex-col items-center justify-center gap-1 bg-background/60 backdrop-blur-[2px]">
+                    <span className="text-lg">🔒</span>
+                    <span className="text-[10px] font-semibold text-muted-foreground text-center px-2 leading-tight">
+                      {getCutoffLabel(category)}
+                    </span>
+                  </div>
+                )}
+
                 <div className="pointer-events-none absolute inset-0 rounded-3xl opacity-0 group-hover:opacity-100 transition-opacity duration-300"
                   style={{ background: 'linear-gradient(130deg,rgba(56,189,248,0.08),transparent 45%,rgba(249,115,22,0.1))' }} />
 
@@ -322,8 +363,10 @@ function CategorySection({ category, groupIdx, grouped, cart, cartMealType, canA
                 {!inCart ? (
                   <div className="grid grid-cols-[1fr_auto] items-center gap-2 w-full mt-auto">
                     <p className="text-sm font-black leading-none text-slate-900 dark:text-slate-100 truncate">₹{p.price}</p>
-                    <motion.button whileTap={{ scale: 0.85 }}
+                    <motion.button whileTap={disabled ? {} : { scale: 0.85 }}
+                      disabled={disabled}
                       onClick={() => {
+                        if (disabled) return;
                         if (!canAddToCart(p.category)) {
                           const other = cartMealType === 'lunch' ? 'Dinner' : 'Lunch';
                           toast.warning(`Remove your ${cartMealType === 'lunch' ? 'Lunch' : 'Dinner'} items before adding ${other}.`);
@@ -331,7 +374,7 @@ function CategorySection({ category, groupIdx, grouped, cart, cartMealType, canA
                         }
                         addToCart(cartProduct);
                       }}
-                      className="w-8 h-8 rounded-xl flex items-center justify-center text-white font-black shadow-[0_7px_16px_rgba(14,165,233,0.35)]"
+                      className="w-8 h-8 rounded-xl flex items-center justify-center text-white font-black shadow-[0_7px_16px_rgba(14,165,233,0.35)] disabled:opacity-40 disabled:cursor-not-allowed"
                       style={{ background: 'linear-gradient(135deg,rgba(249,115,22,1),rgba(56,189,248,1))' }}>
                       <Plus className="w-4 h-4" />
                     </motion.button>

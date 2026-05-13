@@ -47,7 +47,7 @@ function printOrders(orders: Order[], users: User[], menu: any[], getMenuName: (
   </style></head><body>
   <h2>All Orders</h2><p>${dateLabel} &nbsp;·&nbsp; ${orders.length} order${orders.length !== 1 ? 's' : ''}</p>
   <table><thead><tr>
-    <th>Emp ID</th><th>Name</th><th>Order ID</th><th>Items Ordered</th><th>Price</th><th>Food Received ✓</th>
+    <th>Emp ID</th><th>Name</th><th>Order ID</th><th>Items Ordered</th><th>Price</th><th>Food Delivered ✓</th>
   </tr></thead><tbody>${rows}</tbody></table>
   <script>window.onload=()=>{window.print();}<\/script></body></html>`;
 

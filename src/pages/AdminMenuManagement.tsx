@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Send, ChevronDown, ChevronUp, Search, X } from 'lucide-react';
+import { Send, ChevronDown, ChevronUp, Search, X, History, Calendar } from 'lucide-react';
 import { useAppStore } from '@/store/appStore';
 import { Badge } from '@/components/ui/badge';
 import { toast } from 'sonner';
@@ -89,6 +89,38 @@ export default function AdminMenuManagement() {
 
   const [showAllMap, setShowAllMap] = useState<Record<string, boolean>>({});
   const toggleShowAll = (cat: string) => setShowAllMap(prev => ({ ...prev, [cat]: !prev[cat] }));
+
+  // ── Menu History ──
+  const [showHistory, setShowHistory] = useState(false);
+  const [historyDate, setHistoryDate] = useState(() => {
+    const d = new Date();
+    d.setDate(d.getDate() - 1);
+    return d.toISOString().slice(0, 10);
+  });
+  const [historyItems, setHistoryItems] = useState<any[]>([]);
+  const [historyLoading, setHistoryLoading] = useState(false);
+  const [historyFetched, setHistoryFetched] = useState(false);
+
+  const fetchHistory = async (date: string) => {
+    setHistoryLoading(true);
+    setHistoryFetched(false);
+    try {
+      const [histRes, menuRes] = await Promise.all([
+        ApiService.get('/api/today-menu/history', { selected_date: date }),
+        ApiService.get('/api/menu'),
+      ]);
+      const ids: number[] = (histRes.data ?? []).map((item: any) => Number(item.id ?? item.menu_id ?? item));
+      const allProducts: any[] = menuRes.data ?? [];
+      const matched = ids.map(id => allProducts.find((p: any) => p.id === id)).filter(Boolean);
+      setHistoryItems(matched);
+    } catch {
+      toast.error('Failed to load menu history');
+      setHistoryItems([]);
+    } finally {
+      setHistoryLoading(false);
+      setHistoryFetched(true);
+    }
+  };
 
   const [search, setSearch]         = useState('');
   const [filterCat, setFilterCat]   = useState('All');
@@ -228,36 +260,46 @@ export default function AdminMenuManagement() {
             )}
           </AnimatePresence>
         </div>
-        {/* Publish — pushed to right */}
-        <motion.button
-          whileHover={{ scale: 1.03 }}
-          whileTap={{ scale: 0.95 }}
-          onClick={() => {
-            if (selected.size === 0) { toast.warning('Please select at least one menu item to publish'); return; }
-            if (publishedSelection !== null && selected.size === publishedSelection.size && [...selected].every(id => publishedSelection.has(id))) {
-              toast.warning('This menu is already published. Please modify your selection before publishing again.'); return;
-            }
-            handlePublish();
-          }}
-          disabled={publishing}
-          className="relative flex items-center gap-2 px-3 py-1.5 rounded-xl font-semibold text-xs text-orange-400 overflow-hidden group border border-orange-500/30 bg-orange-500/15 hover:bg-orange-500/20 hover:border-orange-500/40 transition-colors disabled:opacity-40 disabled:pointer-events-none ml-auto"
-          style={{ boxShadow: '0 0 12px -4px rgba(249,115,22,0.2), inset 0 1px 0 rgba(255,255,255,0.05)' }}
-        >
-          <span className="absolute inset-0 translate-x-[-100%] group-hover:translate-x-[100%] transition-transform duration-700 bg-gradient-to-r from-transparent via-orange-400/10 to-transparent pointer-events-none" />
-          <span className="relative flex items-center justify-center shrink-0">
-            {publishing ? (
-              <motion.span animate={{ rotate: 360 }} transition={{ repeat: Infinity, duration: 0.8, ease: 'linear' }}
-                className="w-3.5 h-3.5 border-2 border-orange-400/30 border-t-orange-400 rounded-full block" />
-            ) : (
-              <>
-                <span className="absolute -top-0.5 -right-0.5 w-1.5 h-1.5 rounded-full bg-orange-400 animate-ping" />
-                <span className="absolute -top-0.5 -right-0.5 w-1.5 h-1.5 rounded-full bg-orange-400" />
-                <Send className="relative w-3.5 h-3.5" />
-              </>
-            )}
-          </span>
-          {publishing ? 'Publishing...' : 'Publish Menu'}
-        </motion.button>
+        {/* History + Publish — pushed to right */}
+        <div className="flex items-center gap-2 ml-auto">
+          <motion.button
+            whileHover={{ scale: 1.03 }} whileTap={{ scale: 0.95 }}
+            onClick={() => { setShowHistory(true); setHistoryFetched(false); setHistoryItems([]); }}
+            className="flex items-center gap-2 px-3 py-1.5 rounded-xl font-semibold text-xs text-violet-400 border border-violet-500/30 bg-violet-500/10 hover:bg-violet-500/20 transition-colors"
+          >
+            <History className="w-3.5 h-3.5" />
+            Menu History
+          </motion.button>
+
+          <motion.button
+            whileHover={{ scale: 1.03 }} whileTap={{ scale: 0.95 }}
+            onClick={() => {
+              if (selected.size === 0) { toast.warning('Please select at least one menu item to publish'); return; }
+              if (publishedSelection !== null && selected.size === publishedSelection.size && [...selected].every(id => publishedSelection.has(id))) {
+                toast.warning('This menu is already published. Please modify your selection before publishing again.'); return;
+              }
+              handlePublish();
+            }}
+            disabled={publishing}
+            className="relative flex items-center gap-2 px-3 py-1.5 rounded-xl font-semibold text-xs text-orange-400 overflow-hidden group border border-orange-500/30 bg-orange-500/15 hover:bg-orange-500/20 hover:border-orange-500/40 transition-colors disabled:opacity-40 disabled:pointer-events-none"
+            style={{ boxShadow: '0 0 12px -4px rgba(249,115,22,0.2), inset 0 1px 0 rgba(255,255,255,0.05)' }}
+          >
+            <span className="absolute inset-0 translate-x-[-100%] group-hover:translate-x-[100%] transition-transform duration-700 bg-gradient-to-r from-transparent via-orange-400/10 to-transparent pointer-events-none" />
+            <span className="relative flex items-center justify-center shrink-0">
+              {publishing ? (
+                <motion.span animate={{ rotate: 360 }} transition={{ repeat: Infinity, duration: 0.8, ease: 'linear' }}
+                  className="w-3.5 h-3.5 border-2 border-orange-400/30 border-t-orange-400 rounded-full block" />
+              ) : (
+                <>
+                  <span className="absolute -top-0.5 -right-0.5 w-1.5 h-1.5 rounded-full bg-orange-400 animate-ping" />
+                  <span className="absolute -top-0.5 -right-0.5 w-1.5 h-1.5 rounded-full bg-orange-400" />
+                  <Send className="relative w-3.5 h-3.5" />
+                </>
+              )}
+            </span>
+            {publishing ? 'Publishing...' : 'Publish Menu'}
+          </motion.button>
+        </div>
       </div>
 
       {/* ── Category-grouped product grid ── */}
@@ -385,6 +427,115 @@ export default function AdminMenuManagement() {
           ))}
         </div>
       )}
+
+      {/* ── Menu History Modal ── */}
+      <AnimatePresence>
+        {showHistory && (
+          <motion.div
+            initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
+            className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4"
+            onClick={() => setShowHistory(false)}
+          >
+            <motion.div
+              initial={{ scale: 0.92, opacity: 0, y: 16 }} animate={{ scale: 1, opacity: 1, y: 0 }} exit={{ scale: 0.92, opacity: 0, y: 16 }}
+              transition={{ type: 'spring', stiffness: 280, damping: 24 }}
+              onClick={e => e.stopPropagation()}
+              className="bg-card border border-border/60 rounded-2xl shadow-2xl w-full max-w-2xl max-h-[80vh] flex flex-col overflow-hidden"
+            >
+              {/* Modal header */}
+              <div className="flex items-center justify-between px-5 py-4 border-b border-border/40 shrink-0">
+                <div className="flex items-center gap-2.5">
+                  <div className="w-7 h-7 rounded-lg bg-violet-500/15 flex items-center justify-center">
+                    <History className="w-4 h-4 text-violet-400" />
+                  </div>
+                  <div>
+                    <p className="text-sm font-bold">Menu History</p>
+                    <p className="text-xs text-muted-foreground">View published menu by date</p>
+                  </div>
+                </div>
+                <button onClick={() => setShowHistory(false)}
+                  className="w-7 h-7 rounded-lg bg-muted/40 hover:bg-muted/70 flex items-center justify-center transition-colors">
+                  <X className="w-3.5 h-3.5" />
+                </button>
+              </div>
+
+              {/* Date picker */}
+              <div className="flex items-center gap-3 px-5 py-3 border-b border-border/30 shrink-0">
+                <div className="flex items-center gap-2 px-3 py-2 rounded-xl border border-border/50 bg-background/60 focus-within:border-violet-500/50 transition-colors">
+                  <Calendar className="w-3.5 h-3.5 text-muted-foreground shrink-0" />
+                  <input
+                    type="date"
+                    value={historyDate}
+                    max={new Date().toISOString().slice(0, 10)}
+                    onChange={e => { setHistoryDate(e.target.value); setHistoryFetched(false); setHistoryItems([]); }}
+                    className="bg-transparent text-sm outline-none text-foreground"
+                  />
+                </div>
+                <motion.button
+                  whileHover={{ scale: 1.03 }} whileTap={{ scale: 0.96 }}
+                  onClick={() => fetchHistory(historyDate)}
+                  disabled={historyLoading}
+                  className="flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-bold border border-violet-500/30 bg-violet-500/10 text-violet-400 hover:bg-violet-500/20 transition-colors disabled:opacity-50"
+                >
+                  {historyLoading
+                    ? <motion.span animate={{ rotate: 360 }} transition={{ repeat: Infinity, duration: 0.8, ease: 'linear' }} className="w-3.5 h-3.5 border-2 border-violet-400/30 border-t-violet-400 rounded-full block" />
+                    : <History className="w-3.5 h-3.5" />}
+                  {historyLoading ? 'Loading...' : 'View'}
+                </motion.button>
+              </div>
+
+              {/* Results */}
+              <div className="flex-1 overflow-y-auto px-5 py-4">
+                {!historyFetched && !historyLoading && (
+                  <p className="text-sm text-muted-foreground text-center py-10">Select a date and click View</p>
+                )}
+                {historyLoading && (
+                  <div className="flex justify-center py-10">
+                    <motion.div animate={{ rotate: 360 }} transition={{ repeat: Infinity, duration: 0.9, ease: 'linear' }}
+                      className="w-6 h-6 border-2 border-violet-400/30 border-t-violet-400 rounded-full" />
+                  </div>
+                )}
+                {historyFetched && !historyLoading && historyItems.length === 0 && (
+                  <p className="text-sm text-muted-foreground text-center py-10">No menu was published on this date.</p>
+                )}
+                {historyFetched && !historyLoading && historyItems.length > 0 && (
+                  <>
+                    <p className="text-xs text-muted-foreground mb-4">
+                      <span className="font-semibold text-violet-400">{historyItems.length} item{historyItems.length > 1 ? 's' : ''}</span>{' '}published on{' '}
+                      <span className="font-semibold text-foreground">
+                        {new Date(historyDate + 'T00:00:00').toLocaleDateString([], { weekday: 'long', day: '2-digit', month: 'long', year: 'numeric' })}
+                      </span>
+                    </p>
+                    <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
+                      {historyItems.map((p, i) => (
+                        <motion.div key={p.id}
+                          initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: i * 0.04 }}
+                          className="rounded-xl border border-border/50 bg-muted/20 overflow-hidden">
+                          <div className="h-24 bg-muted/40 flex items-center justify-center overflow-hidden">
+                            {p.images?.[0]
+                              ? <img src={p.images[0]} alt={p.name} className="w-full h-full object-cover" />
+                              : <span className="text-3xl">{catEmoji[p.category] ?? '🍽️'}</span>}
+                          </div>
+                          <div className="p-2.5">
+                            <p className="font-bold text-xs truncate mb-1.5">{p.name}</p>
+                            <div className="flex items-center justify-between">
+                              <Badge variant="outline" className={`text-[9px] font-semibold px-1.5 py-0 ${catColors[p.category] ?? ''}`}>
+                                {p.category}
+                              </Badge>
+                              <span className="text-xs font-bold text-orange-400">₹{p.price}</span>
+                            </div>
+                          </div>
+                        </motion.div>
+                      ))}
+                    </div>
+                  </>
+                )}
+              </div>
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
     </div>
   );
 }
