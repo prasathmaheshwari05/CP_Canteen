@@ -6,12 +6,13 @@ from app.db.dependency import get_db
 from app.auth.dependencies import get_current_user, admin_or_superadmin_required
 
 from app.schemas.today_menu_schema import TodayMenuCreate, TodayMenuUpdate
-
+from datetime import date
 from app.services.today_menu_service import (
     add_today_menu_service,
     delete_today_menu_service,
     get_today_menu_service,
     update_today_menu_service,
+    get_menu_by_date_service,
 )
 
 router = APIRouter()
@@ -45,6 +46,17 @@ def get_today_menu(
 ):
 
     return get_today_menu_service(db)
+
+
+# ✅ GET MENU BY DATE
+@router.get("/today-menu/history")
+def get_menu_by_date(
+    selected_date: date,
+    db: Session = Depends(get_db),
+    current_user=Depends(get_current_user),
+):
+
+    return get_menu_by_date_service(selected_date, db)
 
 
 # ✅ UPDATE TODAY MENU

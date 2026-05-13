@@ -98,3 +98,36 @@ def update_today_menu_service(
     db.commit()
 
     return {"message": "Updated"}
+
+
+# ✅ GET PUBLISHED MENU BY DATE
+def get_menu_by_date_service(
+    selected_date: date,
+    db: Session,
+):
+
+    items = (
+        db.query(TodayMenu, Menu)
+        .join(Menu, TodayMenu.menu_id == Menu.id)
+        .filter(TodayMenu.date == selected_date)
+        .all()
+    )
+
+    result = []
+
+    for today_item, menu in items:
+
+        result.append(
+            {
+                "today_menu_id": today_item.id,
+                "menu_id": menu.id,
+                "name": menu.name,
+                "price": menu.price,
+                "category": menu.category,
+                "available": menu.available,
+                "images": menu.images,
+                "date": today_item.date,
+            }
+        )
+
+    return result
