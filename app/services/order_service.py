@@ -1,25 +1,30 @@
 from fastapi import HTTPException
 from sqlalchemy.orm import Session
-from sqlalchemy import func
-
-from app.db.models import Order, OrderItem, Menu, User
-
+from app.db.models import  User
+from app.utils.qr_generator import generate_qr
 from app.schemas.order_schema import OrderCreate, OrderPut
 
 from datetime import date, datetime, time, timedelta
 from dotenv import load_dotenv
 import pytz, os
+from app.repositories.order_repository import (
+    get_menu_by_id_repo,
+    get_order_items_repo,
+    commit_repo,
+    refresh_repo,
+    create_order_repo,
+    add_order_item_repo,
+    get_existing_orders_repo,
+    get_order_by_id_repo,
+    delete_order_items_repo,
+    get_all_orders_repo,
+    get_total_orders_repo,
+    get_total_sales_repo,
+    get_my_orders_repo,
+)
+from app.core.config import IST
 
-load_dotenv()
-BASE_URL = os.getenv("BASE_URL")
-IST = pytz.timezone("Asia/Kolkata")
 
-
-def generate_qr(order_id: int):
-
-    qr_url = f"{BASE_URL}/api/public/order/{order_id}"
-
-    return qr_url
 
 
 def create_order_service(
@@ -38,7 +43,7 @@ def create_order_service(
     # ✅ get categories
     for item in request.items:
 
-        menu = db.query(Menu).filter(Menu.id == item.menu_id).first()
+        menu = get_menu_by_id_repo(db,item.menu_id)
 
         if not menu:
             raise HTTPException(
@@ -88,23 +93,16 @@ def create_order_service(
         raise HTTPException(status_code=400, detail="Invalid category")
 
     # ✅ existing orders
-    existing_orders = (
-        db.query(Order)
-        .filter(
-            Order.user_id == current_user.id,
-            Order.order_date == order_date,
-        )
-        .all()
-    )
+    existing_orders = get_existing_orders_repo(db, current_user.id, order_date)
 
     # ✅ duplicate check
     for order in existing_orders:
 
-        items = db.query(OrderItem).filter(OrderItem.order_id == order.id).all()
+        items = get_order_items_repo(db,order.id)
 
         for item in items:
 
-            menu = db.query(Menu).filter(Menu.id == item.menu_id).first()
+            menu = get_menu_by_id_repo(db,item.menu_id)
 
             if menu and menu.category.strip().lower() in normalized_categories:
 
@@ -116,16 +114,12 @@ def create_order_service(
     total_amount = 0
 
     # ✅ create order
-    new_order = Order(user_id=current_user.id, status="pending", order_date=order_date)
-
-    db.add(new_order)
-
-    db.flush()
+    new_order = create_order_repo(db, current_user.id, order_date)
 
     # ✅ add items
     for item in request.items:
 
-        menu = db.query(Menu).filter(Menu.id == item.menu_id).first()
+        menu = get_menu_by_id_repo(db,item.menu_id)
 
         if not menu:
             raise HTTPException(
@@ -137,11 +131,7 @@ def create_order_service(
 
         total_amount += menu.price * item.quantity
 
-        order_item = OrderItem(
-            order_id=new_order.id, menu_id=item.menu_id, quantity=item.quantity
-        )
-
-        db.add(order_item)
+        add_order_item_repo(db, new_order.id, item.menu_id, item.quantity)
 
     new_order.total_amount = total_amount
 
@@ -150,11 +140,11 @@ def create_order_service(
 
     new_order.qr_code = qr_path
 
-    db.commit()
+    commit_repo(db)
 
-    db.refresh(new_order)
+    refresh_repo(db, new_order)
 
-    items = db.query(OrderItem).filter(OrderItem.order_id == new_order.id).all()
+    items = get_order_items_repo(db, new_order.id)
 
     return {
         "id": new_order.id,
@@ -174,7 +164,7 @@ def replace_order_service(
     current_user: User,
 ):
 
-    order = db.query(Order).filter(Order.id == order_id).first()
+    order = get_order_by_id_repo(db, order_id)
 
     if not order:
         raise HTTPException(status_code=404, detail="Order not found")
@@ -186,14 +176,14 @@ def replace_order_service(
         raise HTTPException(status_code=400, detail="Order cannot be modified")
 
     # ✅ delete old items
-    db.query(OrderItem).filter(OrderItem.order_id == order_id).delete()
+    delete_order_items_repo(db, order_id)
 
     total_amount = 0
 
     # ✅ add new items
     for item in request.items:
 
-        menu = db.query(Menu).filter(Menu.id == item.menu_id).first()
+        menu = get_menu_by_id_repo(db,item.menu_id)
 
         if not menu:
             raise HTTPException(
@@ -205,13 +195,7 @@ def replace_order_service(
 
         total_amount += menu.price * item.quantity
 
-        db.add(
-            OrderItem(
-                order_id=order_id,
-                menu_id=item.menu_id,
-                quantity=item.quantity,
-            )
-        )
+        add_order_item_repo(db, order_id, item.menu_id, item.quantity)
 
     order.total_amount = total_amount
 
@@ -224,11 +208,11 @@ def replace_order_service(
     # ✅ save QR into DB
     order.qr_code = qr_path
 
-    db.commit()
+    commit_repo(db)
 
-    db.refresh(order)
+    refresh_repo(db, order)
 
-    items = db.query(OrderItem).filter(OrderItem.order_id == order.id).all()
+    items = get_order_items_repo(db,order.id)
 
     return {
         "id": order.id,
@@ -246,13 +230,13 @@ def get_my_orders_service(
     current_user: User,
 ):
 
-    orders = db.query(Order).filter(Order.user_id == current_user.id).all()
+    orders = get_my_orders_repo(db, current_user.id)
 
     result = []
 
     for order in orders:
 
-        items = db.query(OrderItem).filter(OrderItem.order_id == order.id).all()
+        items = get_order_items_repo(db,order.id)
 
         result.append(
             {
@@ -273,13 +257,13 @@ def get_all_orders_service(
     db: Session,
 ):
 
-    orders = db.query(Order).all()
+    orders = get_all_orders_repo(db)
 
     result = []
 
     for order in orders:
 
-        items = db.query(OrderItem).filter(OrderItem.order_id == order.id).all()
+        items = get_order_items_repo(db,order.id)
 
         result.append(
             {
@@ -300,9 +284,9 @@ def admin_dashboard_service(
     db: Session,
 ):
 
-    total_orders = db.query(Order).count()
+    total_orders = get_total_orders_repo(db)
 
-    total_sales = db.query(func.sum(Order.total_amount)).scalar() or 0
+    total_sales = get_total_sales_repo(db)
 
     return {
         "total_orders": total_orders,
@@ -316,13 +300,13 @@ def update_order_status_service(
     db: Session,
 ):
 
-    order = db.query(Order).filter(Order.id == order_id).first()
+    order = get_order_by_id_repo(db, order_id)
 
     if not order:
         raise HTTPException(status_code=404, detail="Order not found")
 
     order.status = status
 
-    db.commit()
+    commit_repo(db)
 
     return {"message": "Order status updated"}

@@ -1,11 +1,17 @@
 from fastapi import HTTPException
 from sqlalchemy.orm import Session
 
-from app.db.models import User
-
 from app.schemas.user_schema import UserUpdate
 
 from app.auth.utils import hash_password
+
+from app.repositories.user_repository import (
+    get_all_users_repo,
+    get_user_by_emp_id_repo,
+    delete_user_repo,
+    commit_repo,
+    refresh_repo,
+)
 
 
 # ✅ GET ALL USERS
@@ -13,7 +19,7 @@ def get_all_users_service(
     db: Session,
 ):
 
-    users = db.query(User).all()
+    users = get_all_users_repo(db)
 
     return users
 
@@ -24,7 +30,7 @@ def get_user_by_id_service(
     db: Session,
 ):
 
-    db_user = db.query(User).filter(User.emp_id == emp_id).first()
+    db_user = get_user_by_emp_id_repo(db, emp_id)
 
     if not db_user:
         raise HTTPException(status_code=404, detail="User not found")
@@ -43,14 +49,12 @@ def delete_user_service(
     db: Session,
 ):
 
-    db_user = db.query(User).filter(User.emp_id == emp_id).first()
+    db_user = get_user_by_emp_id_repo(db, emp_id)
 
     if not db_user:
         raise HTTPException(status_code=404, detail="User not found")
 
-    db.delete(db_user)
-
-    db.commit()
+    delete_user_repo(db, db_user)
 
     return {"message": "User deleted"}
 
@@ -62,7 +66,7 @@ def update_user_service(
     db: Session,
 ):
 
-    db_user = db.query(User).filter(User.emp_id == emp_id).first()
+    db_user = get_user_by_emp_id_repo(db, emp_id)
 
     if not db_user:
         raise HTTPException(status_code=404, detail="User not found")
@@ -80,9 +84,9 @@ def update_user_service(
     if user.role is not None:
         db_user.role = user.role
 
-    db.commit()
+    commit_repo(db)
 
-    db.refresh(db_user)
+    refresh_repo(db, db_user)
 
     return {
         "message": "User updated successfully",

@@ -3,9 +3,17 @@ from sqlalchemy.orm import Session
 
 from datetime import date
 
-from app.db.models import TodayMenu, Menu
-
 from app.schemas.today_menu_schema import TodayMenuCreate, TodayMenuUpdate
+
+from app.repositories.today_menu_repository import (
+    delete_today_menu_by_date_repo,
+    add_today_menu_repo,
+    commit_repo,
+    get_today_menu_by_id_repo,
+    delete_today_menu_repo,
+    get_today_menu_repo,
+    get_menu_by_date_repo,
+)
 
 
 # ✅ ADD TODAY MENU
@@ -17,16 +25,14 @@ def add_today_menu_service(
     today = date.today()
 
     # ✅ delete today's old menu
-    db.query(TodayMenu).filter(TodayMenu.date == today).delete()
+    delete_today_menu_by_date_repo(db, today)
 
     # ✅ add new menu
     for menu_id in request.menu_ids:
 
-        item = TodayMenu(menu_id=menu_id, date=today)
+        add_today_menu_repo(db, menu_id, today)
 
-        db.add(item)
-
-    db.commit()
+    commit_repo(db)
 
     return {"message": "Today's menu set successfully"}
 
@@ -37,14 +43,12 @@ def delete_today_menu_service(
     db: Session,
 ):
 
-    item = db.query(TodayMenu).filter(TodayMenu.id == id).first()
+    item = get_today_menu_by_id_repo(db, id)
 
     if not item:
         raise HTTPException(status_code=404, detail="Not found")
 
-    db.delete(item)
-
-    db.commit()
+    delete_today_menu_repo(db, item)
 
     return {"message": "Deleted"}
 
@@ -56,12 +60,7 @@ def get_today_menu_service(
 
     today = date.today()
 
-    items = (
-        db.query(TodayMenu, Menu)
-        .join(Menu, TodayMenu.menu_id == Menu.id)
-        .filter(TodayMenu.date == today)
-        .all()
-    )
+    items = get_today_menu_repo(db, today)
 
     result = []
 
@@ -88,14 +87,14 @@ def update_today_menu_service(
     db: Session,
 ):
 
-    item = db.query(TodayMenu).filter(TodayMenu.id == id).first()
+    item = get_today_menu_by_id_repo(db, id)
 
     if not item:
         raise HTTPException(status_code=404, detail="Not found")
 
     item.menu_id = request.menu_id
 
-    db.commit()
+    commit_repo(db)
 
     return {"message": "Updated"}
 
@@ -106,12 +105,7 @@ def get_menu_by_date_service(
     db: Session,
 ):
 
-    items = (
-        db.query(TodayMenu, Menu)
-        .join(Menu, TodayMenu.menu_id == Menu.id)
-        .filter(TodayMenu.date == selected_date)
-        .all()
-    )
+    items = get_menu_by_date_repo(db, selected_date)
 
     result = []
 

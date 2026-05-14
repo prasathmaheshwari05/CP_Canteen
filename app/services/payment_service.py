@@ -3,13 +3,19 @@ from sqlalchemy.orm import Session
 
 import razorpay
 
-from app.db.models import Order, Payment
+from app.db.models import Payment
 
 from app.schemas.payment_schema import VerifyPaymentSchema
 
 from app.payment.payment_service import create_payment_order
 
 from app.payment.razorpay_client import razorpay_client
+
+from app.repositories.payment_repository import (
+    get_order_by_id_repo,
+    save_payment_repo,
+    commit_repo,
+)
 
 
 # ✅ CREATE PAYMENT
@@ -18,7 +24,7 @@ def create_payment_service(
     db: Session,
 ):
 
-    order = db.query(Order).filter(Order.id == order_id).first()
+    order = get_order_by_id_repo(db, order_id)
 
     if not order:
         raise HTTPException(status_code=404, detail="Order not found")
@@ -36,7 +42,7 @@ def verify_payment_service(
 
     try:
 
-        order = db.query(Order).filter(Order.id == data.order_id).first()
+        order = get_order_by_id_repo(db, data.order_id)
 
         if not order:
             raise HTTPException(status_code=404, detail="Order not found")
@@ -63,6 +69,8 @@ def verify_payment_service(
         # ✅ update order
         order.status = "paid"
 
+        commit_repo(db)
+
         # ✅ save payment
         payment = Payment(
             order_id=data.order_id,
@@ -72,9 +80,7 @@ def verify_payment_service(
             status="success",
         )
 
-        db.add(payment)
-
-        db.commit()
+        save_payment_repo(db, payment)
 
         return {"message": "Payment verified & saved"}
 
