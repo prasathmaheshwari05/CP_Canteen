@@ -171,7 +171,7 @@ export default function Signup() {
                 <Field
                   label="Password"
                   type={showPassword ? 'text' : 'password'}
-                  placeholder="••••••••"
+                  placeholder="Enter your password"
                   value={form.password}
                   autoComplete="new-password"
                   onChange={v => update('password', v)}
@@ -195,7 +195,7 @@ export default function Signup() {
                 <Field
                   label="Confirm Password"
                   type={showConfirmPassword ? 'text' : 'password'}
-                  placeholder="••••••••"
+                  placeholder="Confirm your password"
                   value={form.confirmPassword}
                   autoComplete="new-password"
                   onChange={v => update('confirmPassword', v)}

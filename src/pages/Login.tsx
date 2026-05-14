@@ -3,9 +3,10 @@ import { Link, useNavigate } from "react-router-dom";
 import { motion } from "framer-motion";
 import { Eye, EyeOff, ArrowRight } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { useAppStore } from "@/store/appStore";
+import { useAppStore, normalizeRole } from "@/store/appStore";
 import ApiService from "@/api/apiServices";
 import { toast } from "sonner";
+import { ApiUser, LoginResponse } from "@/types/api";
 
 interface FieldProps {
   label: string;
@@ -119,9 +120,9 @@ export default function Login() {
       if (isEmail) {
         // Fetch users to find emp_id by email
         const usersRes = await ApiService.get("/auth/users");
-        const users: any[] = usersRes.data ?? [];
+        const users: ApiUser[] = usersRes.data ?? [];
         const matched = users.find(
-          (u: any) =>
+          (u: ApiUser) =>
             u.emp_mail?.toLowerCase() === identifier.trim().toLowerCase()
         );
         if (!matched) {
@@ -138,7 +139,7 @@ export default function Login() {
         emp_id: empId,
         password,
       });
-      const { access_token, role, emp_name, emp_mail, emp_id: loginEmpId, id: userId } = res.data;
+      const { access_token, role, emp_name, emp_mail, emp_id: loginEmpId, id: userId }: LoginResponse = res.data;
       sessionStorage.setItem("access_token", access_token);
       setRole(role);
 
@@ -148,7 +149,7 @@ export default function Login() {
       if (!resolvedName || !resolvedMail) {
         try {
           const usersRes = await ApiService.get("/auth/users");
-          const matched = (usersRes.data ?? []).find((u: any) => u.emp_id === (loginEmpId ?? empId));
+          const matched = (usersRes.data as ApiUser[] ?? []).find((u: ApiUser) => u.emp_id === (loginEmpId ?? empId));
           if (matched) {
             resolvedName = resolvedName || matched.emp_name;
             resolvedMail = resolvedMail || matched.emp_mail;
@@ -156,14 +157,16 @@ export default function Login() {
         } catch {}
       }
 
-      setCurrentUser({ emp_name: resolvedName, emp_mail: resolvedMail, emp_id: loginEmpId, id: userId } as any);
+      setCurrentUser({ emp_name: resolvedName ?? '', emp_mail: resolvedMail ?? '', emp_id: loginEmpId, id: userId, password: '', role: normalizeRole(role) });
       navigate("/");
-    } catch (err: any) {
-      if (err?.response?.status === 429) {
+    } catch (err: unknown) {
+      const status = (err as { response?: { status?: number } })?.response?.status;
+      if (status === 429) {
         toast.error("Too many attempts, wait 1 minute");
       } else {
         setErrors({ password: "Invalid credentials" });
       }
+
     } finally {
       setIsLoading(false);
     }
@@ -235,7 +238,7 @@ export default function Login() {
               <Field
                 label="Password"
                 type={showPassword ? "text" : "password"}
-                placeholder="••••••••"
+                placeholder="Enter your password"
                 value={password}
                 autoComplete="current-password"
                 onChange={(v) => {

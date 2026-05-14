@@ -18,7 +18,6 @@ import { broadcastLogout } from "@/hooks/useAuthSync";
 import { ThemeToggle } from "@/components/ThemeToggle";
 import { motion, AnimatePresence } from "framer-motion";
 import jsQR from "jsqr";
-import axios from "axios";
 import ApiService from "@/api/apiServices";
 import {
   DropdownMenu,
@@ -231,17 +230,9 @@ export function TopHeader({
   const handleDone = async () => {
     if (!scanResult?.orderId) return;
     try {
-      const token = sessionStorage.getItem("access_token");
-      const baseURL = import.meta.env.VITE_API_BASE_URL || "";
-      await axios.put(
-        `${baseURL}/api/admin/order/${scanResult.orderId}/status?status=approved`,
+      await ApiService.put(
+        `/api/admin/order/${scanResult.orderId}/status?status=approved`,
         null,
-        {
-          headers: {
-            Authorization: `Bearer ${token}`,
-            "ngrok-skip-browser-warning": "true",
-          },
-        },
       );
       window.dispatchEvent(
         new CustomEvent("qr-order-received", {
@@ -251,10 +242,6 @@ export function TopHeader({
       closeScanner();
     } catch (err: any) {
       const detail = err?.response?.data?.detail;
-      console.error(
-        "Status update error:",
-        JSON.stringify(err?.response?.data),
-      );
       const errorText = Array.isArray(detail)
         ? detail.map((e: any) => e.msg).join(", ")
         : typeof detail === "string"

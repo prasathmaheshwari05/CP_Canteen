@@ -17,6 +17,7 @@ import {
   Mail,
 } from "lucide-react";
 import { useAppStore, User } from "@/store/appStore";
+import { ApiUser, UpdateUserPayload } from "@/types/api";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import {
@@ -60,7 +61,7 @@ export default function UserManagement() {
   const [errors, setErrors] = useState(emptyErrors);
   const [quickFillOpen, setQuickFillOpen] = useState(false);
   const [roleDropOpen, setRoleDropOpen] = useState(false);
-  const [apiUsers, setApiUsers] = useState<any[]>([]);
+  const [apiUsers, setApiUsers] = useState<ApiUser[]>([]);
   const [apiLoading, setApiLoading] = useState(false);
   const [pageSize, setPageSize] = useState(ITEMS_PER_PAGE);
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
@@ -85,7 +86,7 @@ export default function UserManagement() {
     try {
       const res = await ApiService.get('/auth/users');
       setApiUsers(res.data ?? []);
-    } catch (err: any) {
+    } catch (err: unknown) {
       toast.error(ApiService.handleAxiosError(err, 'Failed to fetch users'));
     } finally {
       setApiLoading(false);
@@ -202,7 +203,7 @@ export default function UserManagement() {
     setSubmitting(true);
     if (editing) {
       try {
-        const payload: any = {
+        const payload: UpdateUserPayload = {
           emp_name: form.emp_name.trim(),
           emp_mail: form.emp_mail.trim(),
           role: form.role,
@@ -223,7 +224,7 @@ export default function UserManagement() {
         setEditing(null);
         setForm(emptyForm);
         setErrors(emptyErrors);
-      } catch (err: any) {
+      } catch (err: unknown) {
         toast.error(ApiService.handleAxiosError(err, 'Failed to update user'));
       } finally {
         setSubmitting(false);
@@ -250,7 +251,7 @@ export default function UserManagement() {
         fetchUsers();
         setForm(emptyForm);
         setErrors(emptyErrors);
-      } catch (err: any) {
+      } catch (err: unknown) {
         toast.error(ApiService.handleAxiosError(err, 'Failed to create user'));
       } finally {
         setSubmitting(false);
@@ -276,14 +277,7 @@ export default function UserManagement() {
     setErrors(emptyErrors);
   };
 
-  // dropdown users list for quick-fill
-  const demoUsers = [
-    { label: "Admin — Shyam", email: "shyam@gmail.com", role: "admin" as const },
-    { label: "User — Priya",  email: "priya@gmail.com", role: "user"  as const },
-    { label: "User — Rahul",  email: "rahul@gmail.com", role: "user"  as const },
-  ];
-
-  const passwordValidationFailures = !editing && form.password
+const passwordValidationFailures = !editing && form.password
     ? passwordChecks(form.password).filter((check) => !check.ok)
     : [];
   const firstPasswordValidationMessage =
@@ -302,7 +296,7 @@ export default function UserManagement() {
           initial={{ opacity: 0, y: 10 }}
           animate={{ opacity: 1, y: 0 }}
           className="rounded-2xl w-full"
-          style={{
+          style={{ 
             boxShadow: "0 4px 32px rgba(0,0,0,0.10)",
             border: editing
               ? "1.5px solid hsl(262 83% 58% / 0.25)"
@@ -1035,7 +1029,7 @@ export default function UserManagement() {
                 toast.success("User deleted successfully");
                 setDeleteDialogOpen(false);
                 setDeleteTarget(null);
-              } catch (err: any) {
+              } catch (err: unknown) {
                 toast.error(ApiService.handleAxiosError(err, "Failed to delete user"));
               } finally {
                 setDeletingUser(false);

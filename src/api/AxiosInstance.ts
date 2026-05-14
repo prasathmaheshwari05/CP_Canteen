@@ -1,7 +1,10 @@
-import axios from "axios";
+import axios, { AxiosInstance, InternalAxiosRequestConfig, AxiosResponse, AxiosError } from "axios";
+
+const baseURL = import.meta.env.VITE_API_BASE_URL;
+if (!baseURL) throw new Error("VITE_API_BASE_URL is not defined in .env");
 
 const api = axios.create({
-  baseURL: import.meta.env.VITE_API_BASE_URL || "http://localhost:3000",
+  baseURL,
   maxRedirects: 0,
   headers: {
     "ngrok-skip-browser-warning": "true",
@@ -12,9 +15,9 @@ const logout = () => {
   sessionStorage.removeItem("access_token");
 };
 
-const setupInterceptors = (instance) => {
+const setupInterceptors = (instance: AxiosInstance) => {
   instance.interceptors.request.use(
-    (config) => {
+    (config: InternalAxiosRequestConfig) => {
       const token = sessionStorage.getItem("access_token");
       if (token) {
         config.headers["Authorization"] = `Bearer ${token}`;
@@ -25,12 +28,12 @@ const setupInterceptors = (instance) => {
       }
       return config;
     },
-    (error) => Promise.reject(error)
+    (error: AxiosError) => Promise.reject(error)
   );
 
   instance.interceptors.response.use(
-    (response) => response,
-    (error) => {
+    (response: AxiosResponse) => response,
+    (error: AxiosError) => {
       const isLoginRoute = window.location.pathname === "/login";
 
       if (!isLoginRoute && error.response?.status === 401) {

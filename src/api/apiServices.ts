@@ -1,32 +1,42 @@
 import api from './AxiosInstance';
+import { AxiosInstance, AxiosRequestConfig } from 'axios';
 
-const createApiService = (axiosInstance) => ({
-  get: (url, params = {}) => axiosInstance.get(url, { params }),
-  post: (url, data = {}, config = {}) => axiosInstance.post(url, data, config),
-  put: (url, data = {}, config = {}) => axiosInstance.put(url, data, config),
-  delete: (url) => axiosInstance.delete(url),
+const createApiService = (axiosInstance: AxiosInstance) => ({
+  get: (url: string, params: Record<string, unknown> = {}) => axiosInstance.get(url, { params }),
+  post: (url: string, data: unknown = {}, config: AxiosRequestConfig = {}) => axiosInstance.post(url, data, config),
+  put: (url: string, data: unknown = {}, config: AxiosRequestConfig = {}) => axiosInstance.put(url, data, config),
+  delete: (url: string) => axiosInstance.delete(url),
 
-  handleAxiosError: (error, defaultMessage) => {
-    if (error.detail) {
-      return error.detail?.message || "Server error occurred";
+  handleAxiosError: (error: unknown, defaultMessage?: string): string => {
+    const err = error as {
+      detail?: { message?: string };
+      response?: { data?: { detail?: { error?: string } | string } };
+      request?: unknown;
+      error?: string;
+      message?: string;
+    };
+
+    if (err.detail) {
+      return err.detail?.message || "Server error occurred";
     }
 
-    if (error.response) {
-      if (error.response.data?.detail?.error) {
-        return error.response.data.detail.error;
+    if (err.response) {
+      const detail = err.response.data?.detail;
+      if (detail && typeof detail === 'object' && 'error' in detail) {
+        return (detail as { error: string }).error;
       }
-      return error.response.data?.detail || "Server error occurred";
+      return (typeof detail === 'string' ? detail : null) || "Server error occurred";
     }
 
-    if (error.request) {
+    if (err.request) {
       return "No response from server. Please check your internet connection.";
     }
 
-    if (error.error) {
-      return error.error;
+    if (err.error) {
+      return err.error;
     }
 
-    return error.message || defaultMessage || "Something went wrong";
+    return err.message || defaultMessage || "Something went wrong";
   }
 });
 

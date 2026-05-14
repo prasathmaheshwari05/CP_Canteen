@@ -499,11 +499,8 @@ export default function ProductManagement() {
                 whileHover={{ y: -3, boxShadow: '0 12px 32px rgba(0,0,0,0.12)' }}
                 className="bg-card rounded-2xl border border-border/60 shadow-sm transition-all duration-300 overflow-hidden flex flex-col group"
               >
-                {/* Category color bar */}
-                <div className={`h-1 w-full ${meta?.bar}`} />
-
                 {/* Image area — object-contain so full image is always visible */}
-                <div className={`relative h-40 flex items-center justify-center overflow-hidden ${meta?.bg} dark:bg-muted/30`}>
+                <div className="relative h-40 flex items-center justify-center overflow-hidden bg-muted/20">
                   {p.images?.[0] ? (
                     <img
                       src={p.images[0]}

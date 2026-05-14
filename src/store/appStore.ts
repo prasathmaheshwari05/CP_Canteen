@@ -1,9 +1,10 @@
 import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
+import { MyOrder } from '@/types/api';
 
 export type Role = 'super-admin' | 'admin' | 'user';
 
-const normalizeRole = (role: string): Role => {
+export const normalizeRole = (role: string): Role => {
   if (role === 'superadmin' || role === 'super_admin' || role === 'super-admin') return 'super-admin';
   if (role === 'admin') return 'admin';
   return 'user';
@@ -75,19 +76,15 @@ interface AppState {
   addOrder: (order: Order) => void;
   updateOrderStatus: (id: string, status: Order['status']) => void;
 
-  myOrders: any[];
-  addMyOrder: (order: any) => void;
+  myOrders: MyOrder[];
+  addMyOrder: (order: MyOrder) => void;
   clearMyOrders: () => void;
 }
 
 const sampleProducts: Product[] = [];
 const sampleOrders: Order[] = [];
 
-const sampleUsers: User[] = [
-  { id: '1', emp_id: 1, emp_name: 'Shyam', emp_mail: 'shyam@gmail.com', password: 'Shyam@08', role: 'admin' },
-  { id: '2', emp_id: 2, emp_name: 'Priya', emp_mail: 'priya@gmail.com', password: 'Priya@08', role: 'user' },
-  { id: '3', emp_id: 3, emp_name: 'Rahul', emp_mail: 'rahul@gmail.com', password: 'Rahul@08', role: 'user' },
-];
+const sampleUsers: User[] = [];
 
 export const useAppStore = create<AppState>()(persist((set) => ({
   currentRole: 'super-admin',
